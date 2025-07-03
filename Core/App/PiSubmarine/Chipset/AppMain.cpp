@@ -33,6 +33,7 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::Run()
 	{
+
 		HAL_LPTIM_PWM_Start(&hlptim2, LPTIM_CHANNEL_1);
 		while (true)
 		{
@@ -44,6 +45,10 @@ namespace PiSubmarine::Chipset
 			SleepWait(3000ms);
 		}
 		HAL_LPTIM_PWM_Stop(&hlptim2, LPTIM_CHANNEL_1);
+
+		// Disable RPI_I2C pull-ups. After REG5 boots, RegRpi will drive RPI_I2C
+		RPI_SDA_GPIO_Port->PUPDR &= ~(0b11ULL << (7 * 2));
+		RPI_SCL_GPIO_Port->PUPDR &= ~(0b11ULL << (6 * 2));
 
 		while (true)
 		{
@@ -236,6 +241,7 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::EnterWaitForReg12(PowerState oldState)
 	{
+		HAL_GPIO_WritePin(CHIPSET_INT_GPIO_Port, CHIPSET_INT_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(LED_REG5_GPIO_Port, LED_REG5_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(LED_REG12_GPIO_Port, LED_REG12_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(LED_REGPI_GPIO_Port, LED_REGPI_Pin, GPIO_PIN_SET);
@@ -301,7 +307,8 @@ namespace PiSubmarine::Chipset
 
 		uint16_t regPiAdc = GetAdcRegPi();
 		Api::MicroVolts regPiVoltage = GetVoltageRegPi(regPiAdc);
-		uint32_t regPiMv = regPiVoltage.Get() / 1000;
+		uint32_t v = regPiVoltage.Get() / 1000;
+		printf("RegPI Voltage: %lu mV\n", v);
 		if (regPiVoltage.Get() < Api::MicroVolts(32000000).Get())
 		{
 			SleepWait(10ms);
@@ -314,11 +321,18 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::EnterRunning(PowerState oldState)
 	{
-
+		m_AdcComplete = false;
 	}
 
 	void AppMain::TickRunning()
 	{
+		if (m_AdcComplete)
+		{
+			m_AdcComplete = false;
+			uint16_t reg5Adc = GetAdcReg5();
+			Api::MicroVolts reg5Voltage = GetVoltageReg5(reg5Adc);
+
+		}
 		SleepWait(10ms);
 	}
 

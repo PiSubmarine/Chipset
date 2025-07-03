@@ -7,6 +7,7 @@
 #include "PiSubmarine/Max1726/Max1726.h"
 #include "PiSubmarine/Bq25792/Bq25792.h"
 #include "PiSubmarine/Chipset/Api/MicroVolts.h"
+#include "PiSubmarine/Chipset/Api/PacketOut.h"
 #include "main.h"
 #include "i2c.h"
 #include <array>
@@ -55,6 +56,8 @@ namespace PiSubmarine::Chipset
 		bool m_AdcComplete = false;
 		PowerState m_PowerState = PowerState::FullReset;
 		std::array<uint16_t, 4> m_AdcBuffer{0};
+		std::array<uint8_t, Api::PacketOut::Size> m_PacketOutSerialized;
+		Api::PacketOut m_PacketOut;
 
 		bool InitBatteryManagers();
 		void SleepWait(std::chrono::milliseconds delay);
