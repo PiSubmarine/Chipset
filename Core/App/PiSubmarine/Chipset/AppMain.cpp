@@ -11,6 +11,7 @@
 #include "lptim.h"
 #include <vector>
 #include <stdio.h>
+#include "adc.h"
 
 using namespace std::chrono_literals;
 using namespace PiSubmarine::Max1726;
@@ -32,23 +33,68 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::Run()
 	{
-		// Full System Reset happened.
 		HAL_LPTIM_PWM_Start(&hlptim2, LPTIM_CHANNEL_1);
-		while(true)
+		while (true)
 		{
-			bool initOk = InitMotherboard();
-			if(initOk)
+			bool initOk = InitBatteryManagers();
+			if (initOk)
 			{
 				break;
 			}
 			SleepWait(3000ms);
 		}
-
 		HAL_LPTIM_PWM_Stop(&hlptim2, LPTIM_CHANNEL_1);
 
 		while (true)
 		{
-			HAL_Delay(1000);
+			PowerState powerStateOld = m_PowerState;
+
+			switch (powerStateOld)
+			{
+			case PowerState::FullReset:
+				TickFullReset();
+				break;
+			case PowerState::WaitForReg12:
+				TickWaitForReg12();
+				break;
+			case PowerState::WaitForReg5:
+				TickWaitForReg5();
+				break;
+			case PowerState::WaitForRegPi:
+				TickWaitForRegPi();
+				break;
+			case PowerState::Running:
+				TickRunning();
+				break;
+			case PowerState::Standby:
+				TickStandby();
+				break;
+			}
+
+			if (m_PowerState != powerStateOld)
+			{
+				switch (m_PowerState)
+				{
+				case PowerState::FullReset:
+					Error_Handler();
+					break;
+				case PowerState::WaitForReg12:
+					EnterWaitForReg12(powerStateOld);
+					break;
+				case PowerState::WaitForReg5:
+					EnterWaitForReg5(powerStateOld);
+					break;
+				case PowerState::WaitForRegPi:
+					EnterWaitForRegPi(powerStateOld);
+					break;
+				case PowerState::Running:
+					EnterRunning(powerStateOld);
+					break;
+				case PowerState::Standby:
+					EnterStandby(powerStateOld);
+					break;
+				}
+			}
 		}
 	}
 
@@ -59,6 +105,11 @@ namespace PiSubmarine::Chipset
 			m_Lptim1Expired = true;
 			HAL_LPTIM_TimeOut_Stop_IT(&hlptim1);
 		}
+	}
+
+	void AppMain::OnAdcConvertionCompletedHandler(ADC_HandleTypeDef *hadc)
+	{
+		m_AdcComplete = true;
 	}
 
 	I2CDriver& AppMain::GetRpiDriver()
@@ -76,15 +127,15 @@ namespace PiSubmarine::Chipset
 		return m_BatchgI2CDriver;
 	}
 
-	bool AppMain::InitMotherboard()
+	bool AppMain::InitBatteryManagers()
 	{
 		// Force-disable regulators
 		HAL_GPIO_WritePin(REG12_EN_GPIO_Port, REG12_EN_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(REG5_EN_GPIO_Port, REG5_EN_Pin, GPIO_PIN_RESET);
 
 		// Init BATMON
-		WaitFunc delayFunc = [](std::chrono::milliseconds delay)
-		{	HAL_Delay(delay.count());};
+		WaitFunc delayFunc = [this](std::chrono::milliseconds delay)
+		{	SleepWait(delay);};
 
 		if (!m_Batmon.InitBlocking(delayFunc, BatmonCapacity, BatmonTerminationCurrent, BatmonEmptyVoltage))
 		{
@@ -103,7 +154,7 @@ namespace PiSubmarine::Chipset
 		}
 
 		// Init BATCHG
-		if(!m_Batchg.ReadAndWait(delayFunc))
+		if (!m_Batchg.ReadAndWait(delayFunc))
 		{
 			return false;
 		}
@@ -154,6 +205,156 @@ namespace PiSubmarine::Chipset
 	void AppMain::UpdateLeds()
 	{
 		HAL_GPIO_WritePin(LED_BAT_GPIO_Port, LED_BAT_Pin, GPIO_PIN_SET);
+	}
+
+	void AppMain::TickFullReset()
+	{
+		m_PowerState = PowerState::WaitForReg12;
+	}
+
+	void AppMain::EnterStandby(PowerState oldState)
+	{
+		hlptim2.Instance->ARR = 5000;
+		HAL_LPTIM_PWM_Start(&hlptim2, LPTIM_CHANNEL_1);
+
+		HAL_ADC_Stop_DMA(&hadc1);
+
+		HAL_GPIO_WritePin(REG12_EN_GPIO_Port, REG12_EN_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(REG5_EN_GPIO_Port, REG5_EN_Pin, GPIO_PIN_RESET);
+
+		HAL_SuspendTick();
+		HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+		HAL_ResumeTick();
+
+		HAL_LPTIM_PWM_Stop(&hlptim2, LPTIM_CHANNEL_1);
+	}
+
+	void AppMain::TickStandby()
+	{
+		m_PowerState = PowerState::WaitForReg12;
+	}
+
+	void AppMain::EnterWaitForReg12(PowerState oldState)
+	{
+		HAL_GPIO_WritePin(LED_REG5_GPIO_Port, LED_REG5_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(LED_REG12_GPIO_Port, LED_REG12_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(LED_REGPI_GPIO_Port, LED_REGPI_Pin, GPIO_PIN_SET);
+
+		HAL_GPIO_WritePin(REG12_EN_GPIO_Port, REG12_EN_Pin, GPIO_PIN_SET);
+	}
+
+	void AppMain::TickWaitForReg12()
+	{
+		auto reg12Pg = HAL_GPIO_ReadPin(REG12_PG_GPIO_Port, REG12_PG_Pin);
+		if (reg12Pg != GPIO_PIN_SET)
+		{
+			SleepWait(10ms);
+			return;
+		}
+		HAL_GPIO_WritePin(LED_REG12_GPIO_Port, LED_REG12_Pin, GPIO_PIN_RESET);
+		m_PowerState = PowerState::WaitForReg5;
+	}
+
+	void AppMain::EnterWaitForReg5(PowerState oldState)
+	{
+		HAL_GPIO_WritePin(REG5_EN_GPIO_Port, REG5_EN_Pin, GPIO_PIN_SET);
+
+		m_AdcComplete = false;
+		HAL_ADC_Start_DMA(&hadc1, reinterpret_cast<uint32_t*>(m_AdcBuffer.data()), m_AdcBuffer.size());
+		__HAL_DMA_DISABLE_IT(hadc1.DMA_Handle, DMA_IT_HT);
+	}
+
+	void AppMain::TickWaitForReg5()
+	{
+		if (!m_AdcComplete)
+		{
+			SleepWait(10ms);
+			return;
+		}
+		m_AdcComplete = false;
+
+		uint16_t reg5Adc = GetAdcReg5();
+		Api::MicroVolts reg5Voltage = GetVoltageReg5(reg5Adc);
+		if (reg5Voltage.Get() < Api::MicroVolts(490000).Get())
+		{
+			SleepWait(10ms);
+			return;
+		}
+
+		HAL_GPIO_WritePin(LED_REG5_GPIO_Port, LED_REG5_Pin, GPIO_PIN_RESET);
+		m_PowerState = PowerState::WaitForRegPi;
+	}
+
+	void AppMain::EnterWaitForRegPi(PowerState oldState)
+	{
+		m_AdcComplete = false;
+	}
+
+	void AppMain::TickWaitForRegPi()
+	{
+		if (!m_AdcComplete)
+		{
+			SleepWait(10ms);
+			return;
+		}
+		m_AdcComplete = false;
+
+		uint16_t regPiAdc = GetAdcRegPi();
+		Api::MicroVolts regPiVoltage = GetVoltageRegPi(regPiAdc);
+		uint32_t regPiMv = regPiVoltage.Get() / 1000;
+		if (regPiVoltage.Get() < Api::MicroVolts(32000000).Get())
+		{
+			SleepWait(10ms);
+			return;
+		}
+
+		HAL_GPIO_WritePin(LED_REGPI_GPIO_Port, LED_REGPI_Pin, GPIO_PIN_RESET);
+		m_PowerState = PowerState::Running;
+	}
+
+	void AppMain::EnterRunning(PowerState oldState)
+	{
+
+	}
+
+	void AppMain::TickRunning()
+	{
+		SleepWait(10ms);
+	}
+
+	uint16_t AppMain::GetAdcBallast() const
+	{
+		return m_AdcBuffer[0];
+	}
+
+	uint16_t AppMain::GetAdcReg5() const
+	{
+		return m_AdcBuffer[1];
+	}
+
+	uint16_t AppMain::GetAdcRegPi() const
+	{
+		return m_AdcBuffer[2];
+	}
+
+	uint16_t AppMain::GetAdcTemp() const
+	{
+		return m_AdcBuffer[3];
+	}
+
+	Api::MicroVolts AppMain::GetVoltageReg5(uint16_t reg5Adc)
+	{
+		constexpr auto adcRef = Api::MicroVolts(3300000);
+
+		auto adcScaled = adcRef * reg5Adc / ((1ULL << 12) - 1) * 2;
+		return adcScaled;
+	}
+
+	Api::MicroVolts AppMain::GetVoltageRegPi(uint16_t regPiAdc)
+	{
+		constexpr auto adcRef = Api::MicroVolts(3300000);
+		auto adcScaled = adcRef * regPiAdc / ((1ULL << 12) - 1) * 2;
+		return adcScaled;
 	}
 
 }
@@ -233,5 +434,15 @@ extern "C"
 			PiSubmarine::Chipset::AppMain::GetInstance()->LpTimCallback(hlptim);
 		}
 
+		void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+		{
+			auto *app = PiSubmarine::Chipset::AppMain::GetInstance();
+			if (!app)
+			{
+				return;
+			}
+
+			app->OnAdcConvertionCompletedHandler(hadc);
+		}
 	}
 }

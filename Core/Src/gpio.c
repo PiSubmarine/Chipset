@@ -92,7 +92,7 @@ void MX_GPIO_Init(void)
   /*Configure GPIO pin : REG12_PG_Pin */
   GPIO_InitStruct.Pin = REG12_PG_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(REG12_PG_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PA11 PA12 PA15 */
