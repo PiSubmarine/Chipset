@@ -10,6 +10,8 @@ namespace PiSubmarine::Chipset
 	{
 		using I2CCallback = std::function<void(uint8_t deviceAddress, bool)>;
 
+		constexpr static uint32_t HalDelay = 1000;
+
 	public:
 		I2CDriver(I2C_HandleTypeDef& i2cHandle) : m_I2CHandle(i2cHandle)
 		{
@@ -18,12 +20,12 @@ namespace PiSubmarine::Chipset
 
 		bool Read(uint8_t deviceAddress, uint8_t* rxData, size_t len)
 		{
-			return HAL_I2C_Master_Receive(&m_I2CHandle, deviceAddress << 1, rxData, len, HAL_MAX_DELAY) == HAL_OK;
+			return HAL_I2C_Master_Receive(&m_I2CHandle, deviceAddress << 1, rxData, len, HalDelay) == HAL_OK;
 		}
 
 		bool Write(uint8_t deviceAddress, uint8_t* txData, size_t len)
 		{
-			return HAL_I2C_Master_Transmit(&m_I2CHandle, deviceAddress << 1, txData, len, HAL_MAX_DELAY) == HAL_OK;
+			return HAL_I2C_Master_Transmit(&m_I2CHandle, deviceAddress << 1, txData, len, HalDelay) == HAL_OK;
 		}
 
 		bool ReadAsync(uint8_t deviceAddress, uint8_t* rxData, size_t len, I2CCallback callback)

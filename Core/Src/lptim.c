@@ -74,7 +74,7 @@ void MX_LPTIM2_Init(void)
   hlptim2.Init.Clock.Source = LPTIM_CLOCKSOURCE_APBCLOCK_LPOSC;
   hlptim2.Init.Clock.Prescaler = LPTIM_PRESCALER_DIV32;
   hlptim2.Init.Trigger.Source = LPTIM_TRIGSOURCE_SOFTWARE;
-  hlptim2.Init.Period = 1000;
+  hlptim2.Init.Period = 250;
   hlptim2.Init.UpdateMode = LPTIM_UPDATE_IMMEDIATE;
   hlptim2.Init.CounterSource = LPTIM_COUNTERSOURCE_INTERNAL;
   hlptim2.Init.Input1Source = LPTIM_INPUT1SOURCE_GPIO;
@@ -83,7 +83,7 @@ void MX_LPTIM2_Init(void)
   {
     Error_Handler();
   }
-  sConfig1.Pulse = 100;
+  sConfig1.Pulse = 200;
   sConfig1.OCPolarity = LPTIM_OCPOLARITY_HIGH;
   if (HAL_LPTIM_OC_ConfigChannel(&hlptim2, &sConfig1, LPTIM_CHANNEL_1) != HAL_OK)
   {

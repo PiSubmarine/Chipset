@@ -13,6 +13,8 @@
 #include <stdio.h>
 
 using namespace std::chrono_literals;
+using namespace PiSubmarine::Max1726;
+using namespace PiSubmarine::RegUtils;
 
 namespace PiSubmarine::Chipset
 {
@@ -31,11 +33,18 @@ namespace PiSubmarine::Chipset
 	void AppMain::Run()
 	{
 		// Full System Reset happened.
-		InitMotherboard();
-
-		SleepWait(3000ms);
-
 		HAL_LPTIM_PWM_Start(&hlptim2, LPTIM_CHANNEL_1);
+		while(true)
+		{
+			bool initOk = InitMotherboard();
+			if(initOk)
+			{
+				break;
+			}
+			SleepWait(3000ms);
+		}
+
+		HAL_LPTIM_PWM_Stop(&hlptim2, LPTIM_CHANNEL_1);
 
 		while (true)
 		{
@@ -45,7 +54,7 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::LpTimCallback(LPTIM_HandleTypeDef *hlptim)
 	{
-		if(hlptim == &hlptim1)
+		if (hlptim == &hlptim1)
 		{
 			m_Lptim1Expired = true;
 			HAL_LPTIM_TimeOut_Stop_IT(&hlptim1);
@@ -67,11 +76,56 @@ namespace PiSubmarine::Chipset
 		return m_BatchgI2CDriver;
 	}
 
-	void AppMain::InitMotherboard()
+	bool AppMain::InitMotherboard()
 	{
 		// Force-disable regulators
 		HAL_GPIO_WritePin(REG12_EN_GPIO_Port, REG12_EN_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(REG5_EN_GPIO_Port, REG5_EN_Pin, GPIO_PIN_RESET);
+
+		// Init BATMON
+		WaitFunc delayFunc = [](std::chrono::milliseconds delay)
+		{	HAL_Delay(delay.count());};
+
+		if (!m_Batmon.InitBlocking(delayFunc, BatmonCapacity, BatmonTerminationCurrent, BatmonEmptyVoltage))
+		{
+			return false;
+		}
+		if (!m_Batmon.ReadAndWait(RegOffset::Config, delayFunc))
+		{
+			return false;
+		}
+		auto config = m_Batmon.GetConfig();
+		config = config & ~(ConfigFlags::EnableTemperatureChannel | ConfigFlags::EnableThermistor | ConfigFlags::TemperatureAlertSticky);
+		m_Batmon.SetConfig(config);
+		if (!m_Batmon.WriteAndWait(RegOffset::Config, delayFunc))
+		{
+			return false;
+		}
+
+		// Init BATCHG
+		if(!m_Batchg.ReadAndWait(delayFunc))
+		{
+			return false;
+		}
+
+		m_Batchg.SetChargeCurrentLimit(PiSubmarine::Bq25792::MilliAmperes(3000));
+		m_Batchg.SetTsIgnore(true);
+		m_Batchg.SetWatchdog(PiSubmarine::Bq25792::Watchdog::Disable);
+		// m_Batchg.SetAdcEnabled(true);
+		// m_Batchg.SetDischargeOcpEnabled(true);
+		// m_Batchg.SetDischargeCurrentSensingEnabled(true);
+		// m_Batchg.SetIlimHizCurrentLimitEnabled(false);
+		if (!m_Batchg.WriteDirty())
+		{
+			return false;
+		}
+
+		if (!m_Batchg.WaitForTransaction(delayFunc))
+		{
+			return false;
+		}
+
+		return true;
 	}
 
 	void AppMain::SleepWait(std::chrono::milliseconds delay)
@@ -95,6 +149,11 @@ namespace PiSubmarine::Chipset
 		}
 		m_Lptim1Expired = false;
 		HAL_ResumeTick();
+	}
+
+	void AppMain::UpdateLeds()
+	{
+		HAL_GPIO_WritePin(LED_BAT_GPIO_Port, LED_BAT_Pin, GPIO_PIN_SET);
 	}
 
 }
@@ -127,9 +186,9 @@ extern "C"
 			{
 				app->GetChipsetDriver().OnErrorCallback(hi2c);
 			}
-			else if (hi2c == app->GetChipsetDriver().GetHandlePtr())
+			else if (hi2c == app->GetBatchgDriver().GetHandlePtr())
 			{
-				app->GetChipsetDriver().OnErrorCallback(hi2c);
+				app->GetBatchgDriver().OnErrorCallback(hi2c);
 			}
 		}
 
@@ -145,9 +204,9 @@ extern "C"
 			{
 				app->GetChipsetDriver().OnMasterTxCplt(hi2c);
 			}
-			else if (hi2c == app->GetChipsetDriver().GetHandlePtr())
+			else if (hi2c == app->GetBatchgDriver().GetHandlePtr())
 			{
-				app->GetChipsetDriver().OnMasterTxCplt(hi2c);
+				app->GetBatchgDriver().OnMasterTxCplt(hi2c);
 			}
 		}
 
@@ -163,9 +222,9 @@ extern "C"
 			{
 				app->GetChipsetDriver().OnMasterRxCplt(hi2c);
 			}
-			else if (hi2c == app->GetChipsetDriver().GetHandlePtr())
+			else if (hi2c == app->GetBatchgDriver().GetHandlePtr())
 			{
-				app->GetChipsetDriver().OnMasterRxCplt(hi2c);
+				app->GetBatchgDriver().OnMasterRxCplt(hi2c);
 			}
 		}
 
