@@ -308,17 +308,11 @@ namespace PiSubmarine::Chipset
 		}
 		m_AdcComplete = false;
 
-		uint16_t tempAdc = GetAdcTemp();
-		auto uKelvins = GetTemperature(tempAdc);
-		uint32_t mCelcius = (uKelvins.Get() - 273150000) / 1000;
-		printf("T ADC: %lu\n", tempAdc);
-		printf("T: %lu\n", mCelcius);
-
 		uint16_t regPiAdc = GetAdcRegPi();
 		Api::MicroVolts regPiVoltage = GetVoltageRegPi(regPiAdc);
 		if (regPiVoltage.Get() < Api::MicroVolts(32000000).Get())
 		{
-			SleepWait(10ms);
+			SleepWait(100ms);
 			return;
 		}
 
@@ -336,13 +330,18 @@ namespace PiSubmarine::Chipset
 		if (m_AdcComplete)
 		{
 			m_AdcComplete = false;
+
+			uint16_t ballastAdc = GetAdcBallast();
+			m_PacketOut.BallastAdc = Api::Percentage<12>(ballastAdc);
+
 			uint16_t reg5Adc = GetAdcReg5();
-			Api::MicroVolts reg5Voltage = GetVoltageReg5(reg5Adc);
+			m_PacketOut.Reg5Voltage = GetVoltageReg5(reg5Adc);
 
 			uint16_t regPiAdc = GetAdcRegPi();
-			Api::MicroVolts regPiVoltage = GetVoltageRegPi(regPiAdc);
+			m_PacketOut.RegPiVoltage = GetVoltageRegPi(regPiAdc);
 
-			// uint16_t
+			uint16_t tempAdc = GetAdcTemp();
+			m_PacketOut.ChipsetTemperature = GetTemperature(tempAdc);
 		}
 		HAL_SuspendTick();
 		HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
