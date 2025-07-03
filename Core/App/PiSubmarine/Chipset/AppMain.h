@@ -7,6 +7,7 @@
 #include "PiSubmarine/Max1726/Max1726.h"
 #include "PiSubmarine/Bq25792/Bq25792.h"
 #include "PiSubmarine/Chipset/Api/MicroVolts.h"
+#include "PiSubmarine/Chipset/Api/MicroKelvins.h"
 #include "PiSubmarine/Chipset/Api/PacketOut.h"
 #include "main.h"
 #include "i2c.h"
@@ -84,8 +85,10 @@ namespace PiSubmarine::Chipset
 		uint16_t GetAdcReg5() const;
 		uint16_t GetAdcRegPi() const;
 		uint16_t GetAdcTemp() const;
-		Api::MicroVolts GetVoltageReg5(uint16_t reg5Adc);
-		Api::MicroVolts GetVoltageRegPi(uint16_t regPiAdc);
+		Api::Percentage<12> GetPercentageBallast(uint16_t ballastAdc) const;
+		Api::MicroVolts GetVoltageReg5(uint16_t reg5Adc) const;
+		Api::MicroVolts GetVoltageRegPi(uint16_t regPiAdc) const;
+		Api::MicroKelvins GetTemperature(uint16_t tempAdc) const;
 	};
 }
 

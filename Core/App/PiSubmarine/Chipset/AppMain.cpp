@@ -33,8 +33,11 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::Run()
 	{
-
 		HAL_LPTIM_PWM_Start(&hlptim2, LPTIM_CHANNEL_1);
+
+		// Gives time for weak I2C pull-ups to pressurize the lines.
+		SleepWait(500ms);
+
 		while (true)
 		{
 			bool initOk = InitBatteryManagers();
@@ -305,10 +308,14 @@ namespace PiSubmarine::Chipset
 		}
 		m_AdcComplete = false;
 
+		uint16_t tempAdc = GetAdcTemp();
+		auto uKelvins = GetTemperature(tempAdc);
+		uint32_t mCelcius = (uKelvins.Get() - 273150000) / 1000;
+		printf("T ADC: %lu\n", tempAdc);
+		printf("T: %lu\n", mCelcius);
+
 		uint16_t regPiAdc = GetAdcRegPi();
 		Api::MicroVolts regPiVoltage = GetVoltageRegPi(regPiAdc);
-		uint32_t v = regPiVoltage.Get() / 1000;
-		printf("RegPI Voltage: %lu mV\n", v);
 		if (regPiVoltage.Get() < Api::MicroVolts(32000000).Get())
 		{
 			SleepWait(10ms);
@@ -332,8 +339,14 @@ namespace PiSubmarine::Chipset
 			uint16_t reg5Adc = GetAdcReg5();
 			Api::MicroVolts reg5Voltage = GetVoltageReg5(reg5Adc);
 
+			uint16_t regPiAdc = GetAdcRegPi();
+			Api::MicroVolts regPiVoltage = GetVoltageRegPi(regPiAdc);
+
+			// uint16_t
 		}
-		SleepWait(10ms);
+		HAL_SuspendTick();
+		HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+		HAL_ResumeTick();
 	}
 
 	uint16_t AppMain::GetAdcBallast() const
@@ -356,7 +369,7 @@ namespace PiSubmarine::Chipset
 		return m_AdcBuffer[3];
 	}
 
-	Api::MicroVolts AppMain::GetVoltageReg5(uint16_t reg5Adc)
+	Api::MicroVolts AppMain::GetVoltageReg5(uint16_t reg5Adc) const
 	{
 		constexpr auto adcRef = Api::MicroVolts(3300000);
 
@@ -364,11 +377,26 @@ namespace PiSubmarine::Chipset
 		return adcScaled;
 	}
 
-	Api::MicroVolts AppMain::GetVoltageRegPi(uint16_t regPiAdc)
+	Api::MicroVolts AppMain::GetVoltageRegPi(uint16_t regPiAdc) const
 	{
 		constexpr auto adcRef = Api::MicroVolts(3300000);
 		auto adcScaled = adcRef * regPiAdc / ((1ULL << 12) - 1) * 2;
 		return adcScaled;
+	}
+
+	Api::MicroKelvins AppMain::GetTemperature(uint16_t tempAdc) const
+	{
+		constexpr uint16_t tsCal1Temp = 30;
+		constexpr uint16_t tsCal2Temp = 130;
+		uint16_t tsCal1 = *(reinterpret_cast<uint16_t*>(0x1FFF6E68)) * 33 / 30;
+		uint16_t tsCal2 = *(reinterpret_cast<uint16_t*>(0x1FFF6E8A)) * 33 / 30;
+		int32_t tsData = tempAdc;
+		int32_t tsCalTempDelta = tsCal2Temp - tsCal1Temp;
+		int32_t tsCalDelta = tsCal2 - tsCal1;
+		int32_t tsDataDelta = tsData - (int32_t)tsCal1;
+		int64_t celcius = tsCalTempDelta * tsDataDelta * 1000000 / tsCalDelta + tsCal1Temp * 1000000;
+		uint64_t kelvin = celcius + 273150000;
+		return Api::MicroKelvins(kelvin);
 	}
 
 }
