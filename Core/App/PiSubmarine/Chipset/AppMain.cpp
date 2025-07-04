@@ -152,12 +152,23 @@ namespace PiSubmarine::Chipset
 			return;
 		}
 
+		HAL_I2C_DisableListen_IT(&hi2c1);
+
 		if (TransferDirection == I2C_DIRECTION_TRANSMIT)
 		{
-			// TODO Control packets
+			printf("Receiving...\n");
+			HAL_I2C_Slave_Receive_IT(hi2c, m_RpiReceiveBuffer.data(), 1);
+			// HAL_I2C_Slave_Seq_Receive_DMA(hi2c, m_RpiReceiveBuffer.data(), 0, I2C_FIRST_AND_LAST_FRAME);
 		}
 		else
 		{
+			printf("Sending...\n");
+			uint8_t data = 1;
+			if(HAL_I2C_Slave_Transmit_DMA(&hi2c1, &data, 1) == HAL_BUSY)
+			{
+				printf("HAL_I2C_Slave_Transmit_DMA HAL_BUSY\n");
+			}
+/*
 			PiSubmarine::Chipset::Api::Crc32Func crcFunc = [this](const uint8_t *data, size_t size)
 			{	return Crc32(data, size);};
 			m_PacketOut.ChipsetTime = GetTimestamp();
@@ -168,6 +179,7 @@ namespace PiSubmarine::Chipset
 			m_PacketOut.Status = Api::StatusFlags { 0 };
 
 			HAL_I2C_Slave_Transmit_DMA(&hi2c1, m_PacketOutSerialized.data(), m_PacketOutSerialized.size());
+			*/
 		}
 
 	}
@@ -185,6 +197,35 @@ namespace PiSubmarine::Chipset
 		}
 
 		HAL_I2C_EnableListen_IT(hi2c);
+	}
+
+	void AppMain::I2CSlaveRxCompleteCallback(I2C_HandleTypeDef *hi2c)
+	{
+		if (m_PowerState != PowerState::Running)
+		{
+			return;
+		}
+
+		if (hi2c != &hi2c1)
+		{
+			return;
+		}
+
+		printf("Received I2C data!\n");
+	}
+	void AppMain::I2CSlaveTxCompleteCallback(I2C_HandleTypeDef *hi2c)
+	{
+		if (m_PowerState != PowerState::Running)
+		{
+			return;
+		}
+
+		if (hi2c != &hi2c1)
+		{
+			return;
+		}
+		HAL_I2C_EnableListen_IT(hi2c);
+		printf("Sent I2C data!\n");
 	}
 
 	I2CDriver& AppMain::GetRpiDriver()
@@ -257,7 +298,7 @@ namespace PiSubmarine::Chipset
 		return true;
 	}
 
-	void AppMain::SleepWait(std::chrono::milliseconds delay)
+	void AppMain::SleepWait(std::chrono::milliseconds delay, bool interruptable)
 	{
 		if (delay.count() == 0)
 		{
@@ -272,11 +313,21 @@ namespace PiSubmarine::Chipset
 		m_Lptim1Expired = false;
 		HAL_LPTIM_TimeOut_Start_IT(&hlptim1, timeoutTicks);
 		__HAL_LPTIM_CLEAR_FLAG(&hlptim1, LPTIM_FLAG_ARRM);
-		while (!m_Lptim1Expired)
+
+		if (interruptable)
 		{
 			HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+			HAL_LPTIM_TimeOut_Stop_IT(&hlptim1);
 		}
-		m_Lptim1Expired = false;
+		else
+		{
+			while (!m_Lptim1Expired)
+			{
+				HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+			}
+			m_Lptim1Expired = false;
+		}
+
 		HAL_ResumeTick();
 	}
 
@@ -335,9 +386,7 @@ namespace PiSubmarine::Chipset
 	{
 		HAL_GPIO_WritePin(REG5_EN_GPIO_Port, REG5_EN_Pin, GPIO_PIN_SET);
 
-		m_AdcComplete = false;
-		HAL_ADC_Start_DMA(&hadc1, reinterpret_cast<uint32_t*>(m_AdcBuffer.data()), m_AdcBuffer.size());
-		__HAL_DMA_DISABLE_IT(hadc1.DMA_Handle, DMA_IT_HT);
+		StartAdcOneShot();
 	}
 
 	void AppMain::TickWaitForReg5()
@@ -347,11 +396,11 @@ namespace PiSubmarine::Chipset
 			SleepWait(10ms);
 			return;
 		}
-		m_AdcComplete = false;
 
+		printf("Reg5 Voltage: %lu\n", static_cast<uint32_t>(m_PacketOut.Reg5Voltage.Get() / 1000));
 		if (m_PacketOut.Reg5Voltage.Get() < Api::MicroVolts(4900000).Get())
 		{
-			SleepWait(10ms);
+			StartAdcOneShot();
 			return;
 		}
 
@@ -361,7 +410,7 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::EnterWaitForRegPi(PowerState oldState)
 	{
-		m_AdcComplete = false;
+		StartAdcOneShot();
 	}
 
 	void AppMain::TickWaitForRegPi()
@@ -371,15 +420,13 @@ namespace PiSubmarine::Chipset
 			SleepWait(10ms);
 			return;
 		}
-		m_AdcComplete = false;
 
 		Api::MicroVolts regPiVoltage = m_PacketOut.RegPiVoltage;
-		printf("RegPi RegPi Voltage: %llu\n", regPiVoltage.Get() / 1000);
+		printf("RegPi Voltage: %lu\n", static_cast<uint32_t>(regPiVoltage.Get() / 1000));
 
 		if (regPiVoltage.Get() < Api::MicroVolts(3200000).Get())
 		{
-			SleepWait(100ms);
-			return;
+			StartAdcOneShot();
 		}
 
 		HAL_GPIO_WritePin(LED_REGPI_GPIO_Port, LED_REGPI_Pin, GPIO_PIN_RESET);
@@ -388,8 +435,7 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::EnterRunning(PowerState oldState)
 	{
-		m_AdcComplete = false;
-
+		StartAdcOneShot();
 		HAL_I2C_EnableListen_IT(&hi2c1);
 	}
 
@@ -400,20 +446,19 @@ namespace PiSubmarine::Chipset
 
 		if (m_AdcComplete)
 		{
-			m_AdcComplete = false;
+			StartAdcOneShot();
 		}
 
-		if (!m_Batchg.IsTransactionInProgress())
-		{
-			m_Batchg.Read();
-		}
-		else if (!m_Batchg.HasError())
+		bool batchgOk = m_Batchg.Read();
+		batchgOk &= m_Batchg.WaitForTransaction(delayFunc);
+
+		if (batchgOk)
 		{
 			m_PacketOut.Status = m_PacketOut.Status | Api::StatusFlags::BatchgValid;
 			auto status0 = m_Batchg.GetChargerStatus0();
 			auto chargeStatus = m_Batchg.GetChargeStatus();
 			bool vbusPresent = RegUtils::HasAnyFlag(status0, ChargerStatus0Flags::VbusPresentStat);
-			bool isCharging = !RegUtils::HasAnyFlag(chargeStatus, ChargeStatus::NotCharging | ChargeStatus::ChargingTerminationDone);
+			bool isCharging = chargeStatus != ChargeStatus::NotCharging && chargeStatus != ChargeStatus::ChargingTerminationDone;
 
 			if (vbusPresent)
 			{
@@ -425,9 +470,8 @@ namespace PiSubmarine::Chipset
 			}
 		}
 
-		HAL_SuspendTick();
-		HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
-		HAL_ResumeTick();
+		// SleepWait(100ms, true);
+		HAL_Delay(100);
 	}
 
 	uint16_t AppMain::GetAdcBallast() const
@@ -541,6 +585,13 @@ namespace PiSubmarine::Chipset
 		return HAL_CRC_Calculate(&hcrc, reinterpret_cast<uint32_t*>(dataNc), size);
 	}
 
+	void AppMain::StartAdcOneShot()
+	{
+		m_AdcComplete = false;
+		HAL_ADC_Start_DMA(&hadc1, reinterpret_cast<uint32_t*>(m_AdcBuffer.data()), m_AdcBuffer.size());
+		__HAL_DMA_DISABLE_IT(hadc1.DMA_Handle, DMA_IT_HT);
+	}
+
 }
 
 extern "C"
@@ -652,6 +703,26 @@ extern "C"
 		}
 
 		app->I2CListenCompleteCallback(hi2c);
+	}
+
+	void HAL_I2C_SlaveTxCpltCallback(I2C_HandleTypeDef *hi2c)
+	{
+		auto *app = PiSubmarine::Chipset::AppMain::GetInstance();
+		if (!app)
+		{
+			return;
+		}
+		app->I2CSlaveTxCompleteCallback(hi2c);
+	}
+
+	void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
+	{
+		auto *app = PiSubmarine::Chipset::AppMain::GetInstance();
+		if (!app)
+		{
+			return;
+		}
+		app->I2CSlaveRxCompleteCallback(hi2c);
 	}
 
 }

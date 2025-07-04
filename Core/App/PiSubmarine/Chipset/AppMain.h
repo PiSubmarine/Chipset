@@ -44,6 +44,8 @@ namespace PiSubmarine::Chipset
 		void AdcConvertionCompletedCallback(ADC_HandleTypeDef *hadc);
 		void I2CAddressCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode);
 		void I2CListenCompleteCallback(I2C_HandleTypeDef *hi2c);
+		void I2CSlaveRxCompleteCallback(I2C_HandleTypeDef *hi2c);
+		void I2CSlaveTxCompleteCallback(I2C_HandleTypeDef *hi2c);
 
 		I2CDriver& GetRpiDriver();
 		I2CDriver& GetChipsetDriver();
@@ -65,7 +67,7 @@ namespace PiSubmarine::Chipset
 		Api::PacketOut m_PacketOut;
 
 		bool InitBatteryManagers();
-		void SleepWait(std::chrono::milliseconds delay);
+		void SleepWait(std::chrono::milliseconds delay, bool interruptable = false);
 
 		void TickFullReset();
 
@@ -97,6 +99,7 @@ namespace PiSubmarine::Chipset
 		void ToRtc(std::chrono::milliseconds Timestamp, RTC_TimeTypeDef &OutTime, RTC_DateTypeDef &OutDate) const;
 		void SetRtc(RTC_TimeTypeDef &Time, RTC_DateTypeDef &Date);
 		uint32_t Crc32(const uint8_t* data, size_t size);
+		void StartAdcOneShot();
 	};
 }
 
