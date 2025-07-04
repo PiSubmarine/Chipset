@@ -83,8 +83,8 @@ void MX_LPTIM2_Init(void)
   {
     Error_Handler();
   }
-  sConfig1.Pulse = 200;
-  sConfig1.OCPolarity = LPTIM_OCPOLARITY_HIGH;
+  sConfig1.Pulse = 50;
+  sConfig1.OCPolarity = LPTIM_OCPOLARITY_LOW;
   if (HAL_LPTIM_OC_ConfigChannel(&hlptim2, &sConfig1, LPTIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();

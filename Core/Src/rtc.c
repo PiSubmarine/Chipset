@@ -21,7 +21,7 @@
 #include "rtc.h"
 
 /* USER CODE BEGIN 0 */
-
+#include "PiSubmarine/Chipset/AppMain.h"
 /* USER CODE END 0 */
 
 RTC_HandleTypeDef hrtc;
@@ -59,7 +59,10 @@ void MX_RTC_Init(void)
   }
 
   /* USER CODE BEGIN Check_RTC_BKUP */
-
+  if(IsRtcCorrect())
+  {
+	  return;
+  }
   /* USER CODE END Check_RTC_BKUP */
 
   /** Initialize RTC and set the Time and Date

@@ -35,8 +35,10 @@ namespace PiSubmarine::Chipset
 	{
 		HAL_LPTIM_PWM_Start(&hlptim2, LPTIM_CHANNEL_1);
 
+		// RPI_SDA_GPIO_Port->PUPDR |= (0b11ULL << (7 * 2));
+		// RPI_SCL_GPIO_Port->PUPDR |= (0b11ULL << (6 * 2));
 		// Gives time for weak I2C pull-ups to pressurize the lines.
-		SleepWait(500ms);
+		// SleepWait(1000ms);
 
 		while (true)
 		{
@@ -50,8 +52,8 @@ namespace PiSubmarine::Chipset
 		HAL_LPTIM_PWM_Stop(&hlptim2, LPTIM_CHANNEL_1);
 
 		// Disable RPI_I2C pull-ups. After REG5 boots, RegRpi will drive RPI_I2C
-		RPI_SDA_GPIO_Port->PUPDR &= ~(0b11ULL << (7 * 2));
-		RPI_SCL_GPIO_Port->PUPDR &= ~(0b11ULL << (6 * 2));
+		// RPI_SDA_GPIO_Port->PUPDR &= ~(0b11ULL << (7 * 2));
+		// RPI_SCL_GPIO_Port->PUPDR &= ~(0b11ULL << (6 * 2));
 
 		while (true)
 		{
@@ -115,9 +117,47 @@ namespace PiSubmarine::Chipset
 		}
 	}
 
-	void AppMain::OnAdcConvertionCompletedHandler(ADC_HandleTypeDef *hadc)
+	void AppMain::AdcConvertionCompletedCallback(ADC_HandleTypeDef *hadc)
 	{
 		m_AdcComplete = true;
+	}
+
+	void AppMain::I2CAddressCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode)
+	{
+		if (m_PowerState != PowerState::Running)
+		{
+			return;
+		}
+
+		if (hi2c != &hi2c1)
+		{
+			return;
+		}
+
+		if (TransferDirection == I2C_DIRECTION_TRANSMIT)
+		{
+			// TODO Control packets
+		}
+		else
+		{
+			HAL_I2C_Slave_Transmit_DMA(&hi2c1, m_PacketOutSerialized.data(), m_PacketOutSerialized.size());
+		}
+
+	}
+
+	void AppMain::I2CListenCompleteCallback(I2C_HandleTypeDef *hi2c)
+	{
+		if (m_PowerState != PowerState::Running)
+		{
+			return;
+		}
+
+		if (hi2c != &hi2c1)
+		{
+			return;
+		}
+
+		HAL_I2C_EnableListen_IT(hi2c);
 	}
 
 	I2CDriver& AppMain::GetRpiDriver()
@@ -141,26 +181,29 @@ namespace PiSubmarine::Chipset
 		HAL_GPIO_WritePin(REG12_EN_GPIO_Port, REG12_EN_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(REG5_EN_GPIO_Port, REG5_EN_Pin, GPIO_PIN_RESET);
 
-		// Init BATMON
 		WaitFunc delayFunc = [this](std::chrono::milliseconds delay)
 		{	SleepWait(delay);};
 
-		if (!m_Batmon.InitBlocking(delayFunc, BatmonCapacity, BatmonTerminationCurrent, BatmonEmptyVoltage))
-		{
-			return false;
-		}
-		if (!m_Batmon.ReadAndWait(RegOffset::Config, delayFunc))
-		{
-			return false;
-		}
-		auto config = m_Batmon.GetConfig();
-		config = config & ~(ConfigFlags::EnableTemperatureChannel | ConfigFlags::EnableThermistor | ConfigFlags::TemperatureAlertSticky);
-		m_Batmon.SetConfig(config);
-		if (!m_Batmon.WriteAndWait(RegOffset::Config, delayFunc))
-		{
-			return false;
-		}
+		/*
+		 // Init BATMON
 
+
+		 if (!m_Batmon.InitBlocking(delayFunc, BatmonCapacity, BatmonTerminationCurrent, BatmonEmptyVoltage))
+		 {
+		 return false;
+		 }
+		 if (!m_Batmon.ReadAndWait(RegOffset::Config, delayFunc))
+		 {
+		 return false;
+		 }
+		 auto config = m_Batmon.GetConfig();
+		 config = config & ~(ConfigFlags::EnableTemperatureChannel | ConfigFlags::EnableThermistor | ConfigFlags::TemperatureAlertSticky);
+		 m_Batmon.SetConfig(config);
+		 if (!m_Batmon.WriteAndWait(RegOffset::Config, delayFunc))
+		 {
+		 return false;
+		 }
+		 */
 		// Init BATCHG
 		if (!m_Batchg.ReadAndWait(delayFunc))
 		{
@@ -222,8 +265,9 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::EnterStandby(PowerState oldState)
 	{
-		hlptim2.Instance->ARR = 5000;
+		HAL_LPTIM_PWM_Stop(&hlptim2, LPTIM_CHANNEL_1);
 		HAL_LPTIM_PWM_Start(&hlptim2, LPTIM_CHANNEL_1);
+		hlptim2.Instance->ARR = 5000;
 
 		HAL_ADC_Stop_DMA(&hadc1);
 
@@ -257,7 +301,7 @@ namespace PiSubmarine::Chipset
 		auto reg12Pg = HAL_GPIO_ReadPin(REG12_PG_GPIO_Port, REG12_PG_Pin);
 		if (reg12Pg != GPIO_PIN_SET)
 		{
-			SleepWait(10ms);
+			SleepWait(1ms);
 			return;
 		}
 		HAL_GPIO_WritePin(LED_REG12_GPIO_Port, LED_REG12_Pin, GPIO_PIN_RESET);
@@ -284,7 +328,7 @@ namespace PiSubmarine::Chipset
 
 		uint16_t reg5Adc = GetAdcReg5();
 		Api::MicroVolts reg5Voltage = GetVoltageReg5(reg5Adc);
-		if (reg5Voltage.Get() < Api::MicroVolts(490000).Get())
+		if (reg5Voltage.Get() < Api::MicroVolts(4900000).Get())
 		{
 			SleepWait(10ms);
 			return;
@@ -310,7 +354,9 @@ namespace PiSubmarine::Chipset
 
 		uint16_t regPiAdc = GetAdcRegPi();
 		Api::MicroVolts regPiVoltage = GetVoltageRegPi(regPiAdc);
-		if (regPiVoltage.Get() < Api::MicroVolts(32000000).Get())
+		printf("RegPi ADC: %u, RegPi Voltage: %u\n", regPiAdc, regPiVoltage.Get() / 1000);
+
+		if (regPiVoltage.Get() < Api::MicroVolts(3200000).Get())
 		{
 			SleepWait(100ms);
 			return;
@@ -323,6 +369,10 @@ namespace PiSubmarine::Chipset
 	void AppMain::EnterRunning(PowerState oldState)
 	{
 		m_AdcComplete = false;
+
+		HAL_I2C_EnableListen_IT(&hi2c1);
+
+		// HAL_I2C_Slave_Receive_DMA(&hi2c1, m_RpiReceiveBuffer.data(), m_RpiReceiveBuffer.size());
 	}
 
 	void AppMain::TickRunning()
@@ -392,10 +442,65 @@ namespace PiSubmarine::Chipset
 		int32_t tsData = tempAdc;
 		int32_t tsCalTempDelta = tsCal2Temp - tsCal1Temp;
 		int32_t tsCalDelta = tsCal2 - tsCal1;
-		int32_t tsDataDelta = tsData - (int32_t)tsCal1;
+		int32_t tsDataDelta = tsData - (int32_t) tsCal1;
 		int64_t celcius = tsCalTempDelta * tsDataDelta * 1000000 / tsCalDelta + tsCal1Temp * 1000000;
 		uint64_t kelvin = celcius + 273150000;
 		return Api::MicroKelvins(kelvin);
+	}
+
+	std::chrono::milliseconds AppMain::GetTimestamp() const
+	{
+		if (!IsRtcCorrect())
+		{
+			return std::chrono::milliseconds(0);
+		}
+
+		RTC_TimeTypeDef currentTime;
+		RTC_DateTypeDef currentDate;
+		time_t timestamp;
+		tm currTime;
+
+		HAL_RTC_GetTime(&hrtc, &currentTime, RTC_FORMAT_BCD);
+		HAL_RTC_GetDate(&hrtc, &currentDate, RTC_FORMAT_BCD);
+
+		currTime.tm_year = RTC_Bcd2ToByte(currentDate.Year) + 100;  // In fact: 2000 + 18 - 1900
+		currTime.tm_mday = RTC_Bcd2ToByte(currentDate.Date);
+		currTime.tm_mon = RTC_Bcd2ToByte(currentDate.Month) - 1;
+
+		currTime.tm_hour = RTC_Bcd2ToByte(currentTime.Hours);
+		currTime.tm_min = RTC_Bcd2ToByte(currentTime.Minutes);
+		currTime.tm_sec = RTC_Bcd2ToByte(currentTime.Seconds);
+
+		timestamp = mktime(&currTime) * 1000;
+		return std::chrono::milliseconds(timestamp);
+	}
+
+	void AppMain::ToRtc(std::chrono::milliseconds Timestamp, RTC_TimeTypeDef &OutTime, RTC_DateTypeDef &OutDate) const
+	{
+		time_t RawTime = Timestamp.count() / 1000;
+		// uint32_t Milliseconds = Timestamp % 1000;
+		tm ptm;
+		gmtime_r(&RawTime, &ptm);
+
+		OutDate.Year = RTC_ByteToBcd2(ptm.tm_year - 100);
+		OutDate.Date = RTC_ByteToBcd2(ptm.tm_mday);
+		OutDate.Month = RTC_ByteToBcd2(ptm.tm_mon + 1);
+		OutDate.WeekDay = RTC_WEEKDAY_MONDAY;
+
+		OutTime.Hours = RTC_ByteToBcd2(ptm.tm_hour);
+		OutTime.Minutes = RTC_ByteToBcd2(ptm.tm_min);
+		OutTime.Seconds = RTC_ByteToBcd2(ptm.tm_sec);
+		OutTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+		OutTime.SecondFraction = 0;
+		OutTime.StoreOperation = 0;
+		OutTime.SubSeconds = 0;
+		OutTime.TimeFormat = RTC_HOURFORMAT_24;
+	}
+
+	void AppMain::SetRtc(RTC_TimeTypeDef &Time, RTC_DateTypeDef &Date)
+	{
+		HAL_RTC_SetTime(&hrtc, &Time, RTC_FORMAT_BCD);
+		HAL_RTC_SetDate(&hrtc, &Date, RTC_FORMAT_BCD);
 	}
 
 }
@@ -415,75 +520,100 @@ extern "C"
 		return ch;
 	}
 
-	extern "C"
+	int IsRtcCorrect()
 	{
-		void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+		return (RTC->ICSR & RTC_ICSR_INITS) != 0;
+	}
+
+	void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+	{
+		PiSubmarine::Chipset::AppMain *app = PiSubmarine::Chipset::AppMain::GetInstance();
+		if (hi2c == app->GetRpiDriver().GetHandlePtr())
 		{
-			PiSubmarine::Chipset::AppMain *app = PiSubmarine::Chipset::AppMain::GetInstance();
-			if (hi2c == app->GetRpiDriver().GetHandlePtr())
-			{
-				app->GetRpiDriver().OnErrorCallback(hi2c);
-			}
-			else if (hi2c == app->GetChipsetDriver().GetHandlePtr())
-			{
-				app->GetChipsetDriver().OnErrorCallback(hi2c);
-			}
-			else if (hi2c == app->GetBatchgDriver().GetHandlePtr())
-			{
-				app->GetBatchgDriver().OnErrorCallback(hi2c);
-			}
+			app->GetRpiDriver().OnErrorCallback(hi2c);
 		}
-
-		void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
+		else if (hi2c == app->GetChipsetDriver().GetHandlePtr())
 		{
-
-			PiSubmarine::Chipset::AppMain *app = PiSubmarine::Chipset::AppMain::GetInstance();
-			if (hi2c == app->GetRpiDriver().GetHandlePtr())
-			{
-				app->GetRpiDriver().OnMasterTxCplt(hi2c);
-			}
-			else if (hi2c == app->GetChipsetDriver().GetHandlePtr())
-			{
-				app->GetChipsetDriver().OnMasterTxCplt(hi2c);
-			}
-			else if (hi2c == app->GetBatchgDriver().GetHandlePtr())
-			{
-				app->GetBatchgDriver().OnMasterTxCplt(hi2c);
-			}
+			app->GetChipsetDriver().OnErrorCallback(hi2c);
 		}
-
-		void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
+		else if (hi2c == app->GetBatchgDriver().GetHandlePtr())
 		{
-
-			PiSubmarine::Chipset::AppMain *app = PiSubmarine::Chipset::AppMain::GetInstance();
-			if (hi2c == app->GetRpiDriver().GetHandlePtr())
-			{
-				app->GetRpiDriver().OnMasterRxCplt(hi2c);
-			}
-			else if (hi2c == app->GetChipsetDriver().GetHandlePtr())
-			{
-				app->GetChipsetDriver().OnMasterRxCplt(hi2c);
-			}
-			else if (hi2c == app->GetBatchgDriver().GetHandlePtr())
-			{
-				app->GetBatchgDriver().OnMasterRxCplt(hi2c);
-			}
-		}
-
-		void HAL_LPTIM_CompareMatchCallback(LPTIM_HandleTypeDef *hlptim)
-		{
-			PiSubmarine::Chipset::AppMain::GetInstance()->LpTimCallback(hlptim);
-		}
-
-		void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
-		{
-			auto *app = PiSubmarine::Chipset::AppMain::GetInstance();
-			if (!app)
-			{
-				return;
-			}
-
-			app->OnAdcConvertionCompletedHandler(hadc);
+			app->GetBatchgDriver().OnErrorCallback(hi2c);
 		}
 	}
+
+	void HAL_I2C_MasterTxCpltCallback(I2C_HandleTypeDef *hi2c)
+	{
+
+		PiSubmarine::Chipset::AppMain *app = PiSubmarine::Chipset::AppMain::GetInstance();
+		if (hi2c == app->GetRpiDriver().GetHandlePtr())
+		{
+			app->GetRpiDriver().OnMasterTxCplt(hi2c);
+		}
+		else if (hi2c == app->GetChipsetDriver().GetHandlePtr())
+		{
+			app->GetChipsetDriver().OnMasterTxCplt(hi2c);
+		}
+		else if (hi2c == app->GetBatchgDriver().GetHandlePtr())
+		{
+			app->GetBatchgDriver().OnMasterTxCplt(hi2c);
+		}
+	}
+
+	void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
+	{
+
+		PiSubmarine::Chipset::AppMain *app = PiSubmarine::Chipset::AppMain::GetInstance();
+		if (hi2c == app->GetRpiDriver().GetHandlePtr())
+		{
+			app->GetRpiDriver().OnMasterRxCplt(hi2c);
+		}
+		else if (hi2c == app->GetChipsetDriver().GetHandlePtr())
+		{
+			app->GetChipsetDriver().OnMasterRxCplt(hi2c);
+		}
+		else if (hi2c == app->GetBatchgDriver().GetHandlePtr())
+		{
+			app->GetBatchgDriver().OnMasterRxCplt(hi2c);
+		}
+	}
+
+	void HAL_LPTIM_CompareMatchCallback(LPTIM_HandleTypeDef *hlptim)
+	{
+		PiSubmarine::Chipset::AppMain::GetInstance()->LpTimCallback(hlptim);
+	}
+
+	void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+	{
+		auto *app = PiSubmarine::Chipset::AppMain::GetInstance();
+		if (!app)
+		{
+			return;
+		}
+
+		app->AdcConvertionCompletedCallback(hadc);
+	}
+
+	void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode)
+	{
+		auto *app = PiSubmarine::Chipset::AppMain::GetInstance();
+		if (!app)
+		{
+			return;
+		}
+
+		app->I2CAddressCallback(hi2c, TransferDirection, AddrMatchCode);
+	}
+
+	void HAL_I2C_ListenCpltCallback(I2C_HandleTypeDef *hi2c)
+	{
+		auto *app = PiSubmarine::Chipset::AppMain::GetInstance();
+		if (!app)
+		{
+			return;
+		}
+
+		app->I2CListenCompleteCallback(hi2c);
+	}
+
 }
