@@ -12,9 +12,11 @@
 #include <vector>
 #include <stdio.h>
 #include "adc.h"
+#include "crc.h"
 
 using namespace std::chrono_literals;
 using namespace PiSubmarine::Max1726;
+using namespace PiSubmarine::Bq25792;
 using namespace PiSubmarine::RegUtils;
 
 namespace PiSubmarine::Chipset
@@ -119,11 +121,27 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::AdcConvertionCompletedCallback(ADC_HandleTypeDef *hadc)
 	{
+		(void) hadc;
 		m_AdcComplete = true;
+
+		uint16_t ballastAdc = GetAdcBallast();
+		m_PacketOut.BallastAdc = Api::Percentage<12>(ballastAdc);
+
+		uint16_t reg5Adc = GetAdcReg5();
+		m_PacketOut.Reg5Voltage = GetVoltageReg5(reg5Adc);
+
+		uint16_t regPiAdc = GetAdcRegPi();
+		m_PacketOut.RegPiVoltage = GetVoltageRegPi(regPiAdc);
+
+		uint16_t tempAdc = GetAdcTemp();
+		m_PacketOut.ChipsetTemperature = GetTemperature(tempAdc);
+
+		m_PacketOut.Status = m_PacketOut.Status | Api::StatusFlags::AdcValid;
 	}
 
 	void AppMain::I2CAddressCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode)
 	{
+		(void) AddrMatchCode;
 		if (m_PowerState != PowerState::Running)
 		{
 			return;
@@ -140,6 +158,15 @@ namespace PiSubmarine::Chipset
 		}
 		else
 		{
+			PiSubmarine::Chipset::Api::Crc32Func crcFunc = [this](const uint8_t *data, size_t size)
+			{	return Crc32(data, size);};
+			m_PacketOut.ChipsetTime = GetTimestamp();
+			m_PacketOut.Serialize(m_PacketOutSerialized.data(), m_PacketOutSerialized.size(), crcFunc);
+
+			// Clear packet data
+			m_PacketOut.ChipsetTime = std::chrono::milliseconds(0);
+			m_PacketOut.Status = Api::StatusFlags { 0 };
+
 			HAL_I2C_Slave_Transmit_DMA(&hi2c1, m_PacketOutSerialized.data(), m_PacketOutSerialized.size());
 		}
 
@@ -214,9 +241,9 @@ namespace PiSubmarine::Chipset
 		m_Batchg.SetTsIgnore(true);
 		m_Batchg.SetWatchdog(PiSubmarine::Bq25792::Watchdog::Disable);
 		// m_Batchg.SetAdcEnabled(true);
-		// m_Batchg.SetDischargeOcpEnabled(true);
+		m_Batchg.SetDischargeOcpEnabled(true);
 		// m_Batchg.SetDischargeCurrentSensingEnabled(true);
-		// m_Batchg.SetIlimHizCurrentLimitEnabled(false);
+		m_Batchg.SetIlimHizCurrentLimitEnabled(false);
 		if (!m_Batchg.WriteDirty())
 		{
 			return false;
@@ -253,11 +280,6 @@ namespace PiSubmarine::Chipset
 		HAL_ResumeTick();
 	}
 
-	void AppMain::UpdateLeds()
-	{
-		HAL_GPIO_WritePin(LED_BAT_GPIO_Port, LED_BAT_Pin, GPIO_PIN_SET);
-	}
-
 	void AppMain::TickFullReset()
 	{
 		m_PowerState = PowerState::WaitForReg12;
@@ -265,11 +287,12 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::EnterStandby(PowerState oldState)
 	{
+		HAL_I2C_DisableListen_IT(&hi2c1);
+		HAL_ADC_Stop_DMA(&hadc1);
+
 		HAL_LPTIM_PWM_Stop(&hlptim2, LPTIM_CHANNEL_1);
 		HAL_LPTIM_PWM_Start(&hlptim2, LPTIM_CHANNEL_1);
 		hlptim2.Instance->ARR = 5000;
-
-		HAL_ADC_Stop_DMA(&hadc1);
 
 		HAL_GPIO_WritePin(REG12_EN_GPIO_Port, REG12_EN_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(REG5_EN_GPIO_Port, REG5_EN_Pin, GPIO_PIN_RESET);
@@ -326,9 +349,7 @@ namespace PiSubmarine::Chipset
 		}
 		m_AdcComplete = false;
 
-		uint16_t reg5Adc = GetAdcReg5();
-		Api::MicroVolts reg5Voltage = GetVoltageReg5(reg5Adc);
-		if (reg5Voltage.Get() < Api::MicroVolts(4900000).Get())
+		if (m_PacketOut.Reg5Voltage.Get() < Api::MicroVolts(4900000).Get())
 		{
 			SleepWait(10ms);
 			return;
@@ -352,9 +373,8 @@ namespace PiSubmarine::Chipset
 		}
 		m_AdcComplete = false;
 
-		uint16_t regPiAdc = GetAdcRegPi();
-		Api::MicroVolts regPiVoltage = GetVoltageRegPi(regPiAdc);
-		printf("RegPi ADC: %u, RegPi Voltage: %u\n", regPiAdc, regPiVoltage.Get() / 1000);
+		Api::MicroVolts regPiVoltage = m_PacketOut.RegPiVoltage;
+		printf("RegPi RegPi Voltage: %llu\n", regPiVoltage.Get() / 1000);
 
 		if (regPiVoltage.Get() < Api::MicroVolts(3200000).Get())
 		{
@@ -371,28 +391,40 @@ namespace PiSubmarine::Chipset
 		m_AdcComplete = false;
 
 		HAL_I2C_EnableListen_IT(&hi2c1);
-
-		// HAL_I2C_Slave_Receive_DMA(&hi2c1, m_RpiReceiveBuffer.data(), m_RpiReceiveBuffer.size());
 	}
 
 	void AppMain::TickRunning()
 	{
+		WaitFunc delayFunc = [this](std::chrono::milliseconds delay)
+		{	SleepWait(delay);};
+
 		if (m_AdcComplete)
 		{
 			m_AdcComplete = false;
-
-			uint16_t ballastAdc = GetAdcBallast();
-			m_PacketOut.BallastAdc = Api::Percentage<12>(ballastAdc);
-
-			uint16_t reg5Adc = GetAdcReg5();
-			m_PacketOut.Reg5Voltage = GetVoltageReg5(reg5Adc);
-
-			uint16_t regPiAdc = GetAdcRegPi();
-			m_PacketOut.RegPiVoltage = GetVoltageRegPi(regPiAdc);
-
-			uint16_t tempAdc = GetAdcTemp();
-			m_PacketOut.ChipsetTemperature = GetTemperature(tempAdc);
 		}
+
+		if (!m_Batchg.IsTransactionInProgress())
+		{
+			m_Batchg.Read();
+		}
+		else if (!m_Batchg.HasError())
+		{
+			m_PacketOut.Status = m_PacketOut.Status | Api::StatusFlags::BatchgValid;
+			auto status0 = m_Batchg.GetChargerStatus0();
+			auto chargeStatus = m_Batchg.GetChargeStatus();
+			bool vbusPresent = RegUtils::HasAnyFlag(status0, ChargerStatus0Flags::VbusPresentStat);
+			bool isCharging = !RegUtils::HasAnyFlag(chargeStatus, ChargeStatus::NotCharging | ChargeStatus::ChargingTerminationDone);
+
+			if (vbusPresent)
+			{
+				m_PacketOut.Status = m_PacketOut.Status | Api::StatusFlags::VbusConnected;
+			}
+			if (isCharging)
+			{
+				m_PacketOut.Status = m_PacketOut.Status | Api::StatusFlags::ChargingInProgress;
+			}
+		}
+
 		HAL_SuspendTick();
 		HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
 		HAL_ResumeTick();
@@ -501,6 +533,12 @@ namespace PiSubmarine::Chipset
 	{
 		HAL_RTC_SetTime(&hrtc, &Time, RTC_FORMAT_BCD);
 		HAL_RTC_SetDate(&hrtc, &Date, RTC_FORMAT_BCD);
+	}
+
+	uint32_t AppMain::Crc32(const uint8_t *data, size_t size)
+	{
+		uint8_t *dataNc = const_cast<uint8_t*>(data);
+		return HAL_CRC_Calculate(&hcrc, reinterpret_cast<uint32_t*>(dataNc), size);
 	}
 
 }

@@ -66,7 +66,6 @@ namespace PiSubmarine::Chipset
 
 		bool InitBatteryManagers();
 		void SleepWait(std::chrono::milliseconds delay);
-		void UpdateLeds();
 
 		void TickFullReset();
 
@@ -97,6 +96,7 @@ namespace PiSubmarine::Chipset
 		std::chrono::milliseconds GetTimestamp() const;
 		void ToRtc(std::chrono::milliseconds Timestamp, RTC_TimeTypeDef &OutTime, RTC_DateTypeDef &OutDate) const;
 		void SetRtc(RTC_TimeTypeDef &Time, RTC_DateTypeDef &Date);
+		uint32_t Crc32(const uint8_t* data, size_t size);
 	};
 }
 
