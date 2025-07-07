@@ -343,6 +343,10 @@ namespace PiSubmarine::Chipset
 	void AppMain::EnterStandby(PowerState oldState)
 	{
 		(void) oldState;
+		HAL_I2C_MspDeInit(&hi2c1);
+		HAL_I2C_MspDeInit(&hi2c2);
+		HAL_I2C_MspDeInit(&hi2c3);
+
 		HAL_I2C_DisableListen_IT(&hi2c1);
 		HAL_ADC_Stop_DMA(&hadc1);
 
@@ -360,6 +364,10 @@ namespace PiSubmarine::Chipset
 		HAL_ResumeTick();
 
 		HAL_LPTIM_PWM_Stop(&hlptim2, LPTIM_CHANNEL_1);
+
+		MX_I2C1_Init();
+		MX_I2C2_Init();
+		MX_I2C3_Init();
 	}
 
 	void AppMain::TickStandby()
