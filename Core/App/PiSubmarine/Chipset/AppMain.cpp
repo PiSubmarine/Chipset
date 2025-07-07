@@ -156,7 +156,6 @@ namespace PiSubmarine::Chipset
 
 		if (TransferDirection == I2C_DIRECTION_TRANSMIT)
 		{
-			printf("Receiving...\n");
 			HAL_I2C_Slave_Receive_IT(hi2c, m_RpiReceiveBuffer.data(), 1);
 			// HAL_I2C_Slave_Seq_Receive_DMA(hi2c, m_RpiReceiveBuffer.data(), 0, I2C_FIRST_AND_LAST_FRAME);
 		}
@@ -189,7 +188,7 @@ namespace PiSubmarine::Chipset
 		}
 
 		HAL_I2C_EnableListen_IT(hi2c);
-		printf("I2CListenCompleteCallback\n");
+		printf("L\n");
 	}
 
 	void AppMain::I2CSlaveRxCompleteCallback(I2C_HandleTypeDef *hi2c)
@@ -205,7 +204,7 @@ namespace PiSubmarine::Chipset
 		}
 
 		HAL_I2C_EnableListen_IT(hi2c);
-		printf("I2CSlaveRxCompleteCallback\n");
+		printf("R\n");
 	}
 
 	void AppMain::I2CSlaveTxCompleteCallback(I2C_HandleTypeDef *hi2c)
@@ -220,7 +219,7 @@ namespace PiSubmarine::Chipset
 			return;
 		}
 		HAL_I2C_EnableListen_IT(hi2c);
-		printf("I2CSlaveTxCompleteCallback\n");
+		printf("T\n");
 	}
 
 	void AppMain::I2CErrorCallback(I2C_HandleTypeDef *hi2c)
@@ -235,7 +234,7 @@ namespace PiSubmarine::Chipset
 			return;
 		}
 		HAL_I2C_EnableListen_IT(hi2c);
-		printf("I2C Error!\n");
+		printf("E\n");
 	}
 
 	I2CDriver& AppMain::GetRpiDriver()
@@ -407,7 +406,6 @@ namespace PiSubmarine::Chipset
 			return;
 		}
 
-		printf("Reg5 Voltage: %lu\n", static_cast<uint32_t>(m_PacketOut.Reg5Voltage.Get() / 1000));
 		if (m_PacketOut.Reg5Voltage.Get() < Api::MicroVolts(4900000).Get())
 		{
 			StartAdcOneShot();
