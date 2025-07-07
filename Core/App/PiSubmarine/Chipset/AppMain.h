@@ -57,11 +57,12 @@ namespace PiSubmarine::Chipset
 		bool m_AdcComplete = false;
 		PowerState m_PowerState = PowerState::FullReset;
 		std::array<uint16_t, 4> m_AdcBuffer{0};
-		std::array<uint8_t, 255> m_RpiReceiveBuffer{0};
+		std::chrono::milliseconds m_ShutdownDelay;
+
+		std::array<uint8_t, 13> m_RpiReceiveBuffer{0};
 		std::array<uint8_t, Api::PacketOut::Size> m_PacketOutSerialized;
 		Api::PacketOut m_PacketOut;
-		bool m_I2CCommandHeaderReceived = false;
-		std::chrono::milliseconds m_ShutdownDelay;
+
 
 		bool InitBatteryManagers();
 		void SleepWait(std::chrono::milliseconds delay, bool interruptable = false);

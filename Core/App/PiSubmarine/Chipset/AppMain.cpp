@@ -158,8 +158,7 @@ namespace PiSubmarine::Chipset
 
 		if (TransferDirection == I2C_DIRECTION_TRANSMIT)
 		{
-			m_I2CCommandHeaderReceived = false;
-			HAL_I2C_Slave_Receive_DMA(hi2c, m_RpiReceiveBuffer.data(), 1);
+			HAL_I2C_Slave_Receive_IT(hi2c, m_RpiReceiveBuffer.data(), m_RpiReceiveBuffer.size());
 		}
 		else
 		{
@@ -205,40 +204,22 @@ namespace PiSubmarine::Chipset
 			return;
 		}
 
-		if (!m_I2CCommandHeaderReceived)
+		printf("C: 0x%X\n", m_RpiReceiveBuffer[0]);
+		Api::Command command = static_cast<Api::Command>(m_RpiReceiveBuffer[0]);
+		switch (command)
 		{
-			Api::Command command = static_cast<Api::Command>(m_RpiReceiveBuffer[0]);
-			printf("Cs: %x\n", m_RpiReceiveBuffer[0]);
-			switch (command)
-			{
-			case Api::Command::SetTime:
-				HAL_I2C_Slave_Receive_DMA(hi2c, m_RpiReceiveBuffer.data() + 1, Api::PacketSetTime::Size - 1);
-				break;
-			case Api::Command::Shutdown:
-				HAL_I2C_Slave_Receive_DMA(hi2c, m_RpiReceiveBuffer.data() + 1, Api::PacketShutdown::Size - 1);
-				break;
-			default:
-				break;
-			}
+		case Api::Command::SetTime:
+			OnSetTimeCommand();
+			break;
+		case Api::Command::Shutdown:
+			OnShutdownCommand();
+			break;
+		default:
+			break;
 		}
-		else
-		{
-			printf("Ce: %x\n", m_RpiReceiveBuffer[0]);
-			Api::Command command = static_cast<Api::Command>(m_RpiReceiveBuffer[0]);
-			switch (command)
-			{
-			case Api::Command::SetTime:
-				OnSetTimeCommand();
-				break;
-			case Api::Command::Shutdown:
-				OnShutdownCommand();
-				break;
-			default:
-				break;
-			}
 
-			HAL_I2C_EnableListen_IT(hi2c);
-		}
+		HAL_I2C_EnableListen_IT(hi2c);
+
 	}
 
 	void AppMain::I2CSlaveTxCompleteCallback(I2C_HandleTypeDef *hi2c)
@@ -650,6 +631,9 @@ namespace PiSubmarine::Chipset
 			printf("Cf\n");
 			return;
 		}
+
+		printf("Shutdown in %u\n", static_cast<uint32_t>(shutdown.Delay.count()));
+
 		m_ShutdownDelay = shutdown.Delay;
 		m_PowerState = PowerState::Standby;
 	}
