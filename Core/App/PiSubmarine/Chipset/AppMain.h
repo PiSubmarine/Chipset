@@ -4,7 +4,6 @@
 
 #include <chrono>
 #include "PiSubmarine/Chipset/I2CDriver.h"
-#include "PiSubmarine/Max1726/Max1726.h"
 #include "PiSubmarine/Bq25792/Bq25792.h"
 #include "PiSubmarine/Chipset/Api/MicroVolts.h"
 #include "PiSubmarine/Chipset/Api/MicroKelvins.h"
@@ -30,10 +29,6 @@ namespace PiSubmarine::Chipset
 	{
 	public:
 
-		static constexpr Max1726::MicroAmpereHours BatmonCapacity{3500000};
-		static constexpr Max1726::MicroAmperes BatmonTerminationCurrent{200000};
-		static constexpr Max1726::MicroVolts BatmonEmptyVoltage {3500000};
-
 		static AppMain* GetInstance(){return Instance;}
 		AppMain();
 
@@ -58,7 +53,6 @@ namespace PiSubmarine::Chipset
 		I2CDriver m_ChipsetI2CDriver{hi2c2};
 		I2CDriver m_BatchgI2CDriver{hi2c3};
 		PiSubmarine::Bq25792::Device<I2CDriver> m_Batchg{m_BatchgI2CDriver};
-		PiSubmarine::Max1726::Device<I2CDriver> m_Batmon{m_RpiI2CDriver};
 		bool m_Lptim1Expired = false;
 		bool m_AdcComplete = false;
 		PowerState m_PowerState = PowerState::FullReset;
@@ -66,6 +60,8 @@ namespace PiSubmarine::Chipset
 		std::array<uint8_t, 255> m_RpiReceiveBuffer{0};
 		std::array<uint8_t, Api::PacketOut::Size> m_PacketOutSerialized;
 		Api::PacketOut m_PacketOut;
+		bool m_I2CCommandHeaderReceived = false;
+		std::chrono::milliseconds m_ShutdownDelay;
 
 		bool InitBatteryManagers();
 		void SleepWait(std::chrono::milliseconds delay, bool interruptable = false);
@@ -101,6 +97,9 @@ namespace PiSubmarine::Chipset
 		void SetRtc(RTC_TimeTypeDef &Time, RTC_DateTypeDef &Date);
 		uint32_t Crc32(const uint8_t* data, size_t size);
 		void StartAdcOneShot();
+
+		void OnSetTimeCommand();
+		void OnShutdownCommand();
 	};
 }
 

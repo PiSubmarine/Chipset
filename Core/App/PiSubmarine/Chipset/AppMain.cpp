@@ -6,6 +6,9 @@
  */
 
 #include "PiSubmarine/Chipset/AppMain.h"
+#include "PiSubmarine/Chipset/Api/Command.h"
+#include "PiSubmarine/Chipset/Api/PacketShutdown.h"
+#include "PiSubmarine/Chipset/Api/PacketSetTime.h"
 #include "usart.h"
 #include "i2c.h"
 #include "lptim.h"
@@ -15,7 +18,6 @@
 #include "crc.h"
 
 using namespace std::chrono_literals;
-using namespace PiSubmarine::Max1726;
 using namespace PiSubmarine::Bq25792;
 using namespace PiSubmarine::RegUtils;
 
@@ -156,8 +158,8 @@ namespace PiSubmarine::Chipset
 
 		if (TransferDirection == I2C_DIRECTION_TRANSMIT)
 		{
-			HAL_I2C_Slave_Receive_IT(hi2c, m_RpiReceiveBuffer.data(), 1);
-			// HAL_I2C_Slave_Seq_Receive_DMA(hi2c, m_RpiReceiveBuffer.data(), 0, I2C_FIRST_AND_LAST_FRAME);
+			m_I2CCommandHeaderReceived = false;
+			HAL_I2C_Slave_Receive_DMA(hi2c, m_RpiReceiveBuffer.data(), 1);
 		}
 		else
 		{
@@ -203,8 +205,40 @@ namespace PiSubmarine::Chipset
 			return;
 		}
 
-		HAL_I2C_EnableListen_IT(hi2c);
-		printf("R\n");
+		if (!m_I2CCommandHeaderReceived)
+		{
+			Api::Command command = static_cast<Api::Command>(m_RpiReceiveBuffer[0]);
+			printf("Cs: %x\n", m_RpiReceiveBuffer[0]);
+			switch (command)
+			{
+			case Api::Command::SetTime:
+				HAL_I2C_Slave_Receive_DMA(hi2c, m_RpiReceiveBuffer.data() + 1, Api::PacketSetTime::Size - 1);
+				break;
+			case Api::Command::Shutdown:
+				HAL_I2C_Slave_Receive_DMA(hi2c, m_RpiReceiveBuffer.data() + 1, Api::PacketShutdown::Size - 1);
+				break;
+			default:
+				break;
+			}
+		}
+		else
+		{
+			printf("Ce: %x\n", m_RpiReceiveBuffer[0]);
+			Api::Command command = static_cast<Api::Command>(m_RpiReceiveBuffer[0]);
+			switch (command)
+			{
+			case Api::Command::SetTime:
+				OnSetTimeCommand();
+				break;
+			case Api::Command::Shutdown:
+				OnShutdownCommand();
+				break;
+			default:
+				break;
+			}
+
+			HAL_I2C_EnableListen_IT(hi2c);
+		}
 	}
 
 	void AppMain::I2CSlaveTxCompleteCallback(I2C_HandleTypeDef *hi2c)
@@ -261,26 +295,6 @@ namespace PiSubmarine::Chipset
 		WaitFunc delayFunc = [this](std::chrono::milliseconds delay)
 		{	SleepWait(delay);};
 
-		/*
-		 // Init BATMON
-
-
-		 if (!m_Batmon.InitBlocking(delayFunc, BatmonCapacity, BatmonTerminationCurrent, BatmonEmptyVoltage))
-		 {
-		 return false;
-		 }
-		 if (!m_Batmon.ReadAndWait(RegOffset::Config, delayFunc))
-		 {
-		 return false;
-		 }
-		 auto config = m_Batmon.GetConfig();
-		 config = config & ~(ConfigFlags::EnableTemperatureChannel | ConfigFlags::EnableThermistor | ConfigFlags::TemperatureAlertSticky);
-		 m_Batmon.SetConfig(config);
-		 if (!m_Batmon.WriteAndWait(RegOffset::Config, delayFunc))
-		 {
-		 return false;
-		 }
-		 */
 		// Init BATCHG
 		if (!m_Batchg.ReadAndWait(delayFunc))
 		{
@@ -347,15 +361,18 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::EnterStandby(PowerState oldState)
 	{
+		(void) oldState;
 		HAL_I2C_DisableListen_IT(&hi2c1);
 		HAL_ADC_Stop_DMA(&hadc1);
+
+		SleepWait(m_ShutdownDelay);
 
 		HAL_LPTIM_PWM_Stop(&hlptim2, LPTIM_CHANNEL_1);
 		HAL_LPTIM_PWM_Start(&hlptim2, LPTIM_CHANNEL_1);
 		hlptim2.Instance->ARR = 5000;
 
-		HAL_GPIO_WritePin(REG12_EN_GPIO_Port, REG12_EN_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(REG5_EN_GPIO_Port, REG5_EN_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(REG12_EN_GPIO_Port, REG12_EN_Pin, GPIO_PIN_RESET);
 
 		HAL_SuspendTick();
 		HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_SLEEPENTRY_WFI);
@@ -371,6 +388,7 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::EnterWaitForReg12(PowerState oldState)
 	{
+		(void) oldState;
 		HAL_GPIO_WritePin(CHIPSET_INT_GPIO_Port, CHIPSET_INT_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(LED_REG5_GPIO_Port, LED_REG5_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(LED_REG12_GPIO_Port, LED_REG12_Pin, GPIO_PIN_SET);
@@ -393,6 +411,7 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::EnterWaitForReg5(PowerState oldState)
 	{
+		(void) oldState;
 		HAL_GPIO_WritePin(REG5_EN_GPIO_Port, REG5_EN_Pin, GPIO_PIN_SET);
 
 		StartAdcOneShot();
@@ -418,6 +437,7 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::EnterWaitForRegPi(PowerState oldState)
 	{
+		(void) oldState;
 		StartAdcOneShot();
 	}
 
@@ -444,6 +464,7 @@ namespace PiSubmarine::Chipset
 
 	void AppMain::EnterRunning(PowerState oldState)
 	{
+		(void) oldState;
 		StartAdcOneShot();
 		HAL_I2C_EnableListen_IT(&hi2c1);
 	}
@@ -479,8 +500,7 @@ namespace PiSubmarine::Chipset
 			}
 		}
 
-		// SleepWait(100ms, true);
-		HAL_Delay(100);
+		SleepWait(100ms, true);
 	}
 
 	uint16_t AppMain::GetAdcBallast() const
@@ -601,6 +621,39 @@ namespace PiSubmarine::Chipset
 		__HAL_DMA_DISABLE_IT(hadc1.DMA_Handle, DMA_IT_HT);
 	}
 
+	void AppMain::OnSetTimeCommand()
+	{
+		PiSubmarine::Chipset::Api::Crc32Func crcFunc = [this](const uint8_t *data, size_t size)
+		{	return Crc32(data, size);};
+
+		Api::PacketSetTime setTime;
+		if (!setTime.Deserialize(m_RpiReceiveBuffer.data(), Api::PacketSetTime::Size, crcFunc))
+		{
+			printf("Cf\n");
+			return;
+		}
+
+		RTC_TimeTypeDef time;
+		RTC_DateTypeDef date;
+		ToRtc(setTime.RtcTime, time, date);
+		SetRtc(time, date);
+	}
+
+	void AppMain::OnShutdownCommand()
+	{
+		PiSubmarine::Chipset::Api::Crc32Func crcFunc = [this](const uint8_t *data, size_t size)
+		{	return Crc32(data, size);};
+
+		Api::PacketShutdown shutdown;
+		if (!shutdown.Deserialize(m_RpiReceiveBuffer.data(), Api::PacketShutdown::Size, crcFunc))
+		{
+			printf("Cf\n");
+			return;
+		}
+		m_ShutdownDelay = shutdown.Delay;
+		m_PowerState = PowerState::Standby;
+	}
+
 }
 
 extern "C"
@@ -644,7 +697,7 @@ extern "C"
 			 {
 			 app->GetRpiDriver().OnErrorCallback(hi2c);
 			 }
-			*/
+			 */
 			if (hi2c == app->GetChipsetDriver().GetHandlePtr())
 			{
 				app->GetChipsetDriver().OnErrorCallback(hi2c);

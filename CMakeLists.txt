@@ -52,8 +52,6 @@ add_executable(${CMAKE_PROJECT_NAME})
 
 PiSubmarineAddDependency("https://github.com/PiSubmarine/Bq25792" "")
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE "PiSubmarine.Bq25792")
-PiSubmarineAddDependency("https://github.com/PiSubmarine/Max1726" "")
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE "PiSubmarine.Max1726")
 PiSubmarineAddDependency("https://github.com/PiSubmarine/Chipset.Api" "")
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE "PiSubmarine.Chipset.Api")
 
