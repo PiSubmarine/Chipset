@@ -162,13 +162,6 @@ namespace PiSubmarine::Chipset
 		}
 		else
 		{
-			printf("Sending...\n");
-			uint8_t data = 1;
-			if(HAL_I2C_Slave_Transmit_DMA(&hi2c1, &data, 1) == HAL_BUSY)
-			{
-				printf("HAL_I2C_Slave_Transmit_DMA HAL_BUSY\n");
-			}
-/*
 			PiSubmarine::Chipset::Api::Crc32Func crcFunc = [this](const uint8_t *data, size_t size)
 			{	return Crc32(data, size);};
 			m_PacketOut.ChipsetTime = GetTimestamp();
@@ -179,7 +172,6 @@ namespace PiSubmarine::Chipset
 			m_PacketOut.Status = Api::StatusFlags { 0 };
 
 			HAL_I2C_Slave_Transmit_DMA(&hi2c1, m_PacketOutSerialized.data(), m_PacketOutSerialized.size());
-			*/
 		}
 
 	}
@@ -197,6 +189,7 @@ namespace PiSubmarine::Chipset
 		}
 
 		HAL_I2C_EnableListen_IT(hi2c);
+		printf("I2CListenCompleteCallback\n");
 	}
 
 	void AppMain::I2CSlaveRxCompleteCallback(I2C_HandleTypeDef *hi2c)
@@ -211,8 +204,10 @@ namespace PiSubmarine::Chipset
 			return;
 		}
 
-		printf("Received I2C data!\n");
+		HAL_I2C_EnableListen_IT(hi2c);
+		printf("I2CSlaveRxCompleteCallback\n");
 	}
+
 	void AppMain::I2CSlaveTxCompleteCallback(I2C_HandleTypeDef *hi2c)
 	{
 		if (m_PowerState != PowerState::Running)
@@ -225,7 +220,22 @@ namespace PiSubmarine::Chipset
 			return;
 		}
 		HAL_I2C_EnableListen_IT(hi2c);
-		printf("Sent I2C data!\n");
+		printf("I2CSlaveTxCompleteCallback\n");
+	}
+
+	void AppMain::I2CErrorCallback(I2C_HandleTypeDef *hi2c)
+	{
+		if (m_PowerState != PowerState::Running)
+		{
+			return;
+		}
+
+		if (hi2c != &hi2c1)
+		{
+			return;
+		}
+		HAL_I2C_EnableListen_IT(hi2c);
+		printf("I2C Error!\n");
 	}
 
 	I2CDriver& AppMain::GetRpiDriver()
@@ -427,6 +437,7 @@ namespace PiSubmarine::Chipset
 		if (regPiVoltage.Get() < Api::MicroVolts(3200000).Get())
 		{
 			StartAdcOneShot();
+			return;
 		}
 
 		HAL_GPIO_WritePin(LED_REGPI_GPIO_Port, LED_REGPI_Pin, GPIO_PIN_RESET);
@@ -617,17 +628,33 @@ extern "C"
 	void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 	{
 		PiSubmarine::Chipset::AppMain *app = PiSubmarine::Chipset::AppMain::GetInstance();
-		if (hi2c == app->GetRpiDriver().GetHandlePtr())
+		/*
+		 auto error = HAL_I2C_GetError(hi2c);
+		 if(error == HAL_I2C_ERROR_NONE)
+		 {
+
+		 }
+		 */
+		if (hi2c == &hi2c1)
 		{
-			app->GetRpiDriver().OnErrorCallback(hi2c);
+			app->I2CErrorCallback(hi2c);
 		}
-		else if (hi2c == app->GetChipsetDriver().GetHandlePtr())
+		else
 		{
-			app->GetChipsetDriver().OnErrorCallback(hi2c);
-		}
-		else if (hi2c == app->GetBatchgDriver().GetHandlePtr())
-		{
-			app->GetBatchgDriver().OnErrorCallback(hi2c);
+			/*
+			 if (hi2c == app->GetRpiDriver().GetHandlePtr())
+			 {
+			 app->GetRpiDriver().OnErrorCallback(hi2c);
+			 }
+			*/
+			if (hi2c == app->GetChipsetDriver().GetHandlePtr())
+			{
+				app->GetChipsetDriver().OnErrorCallback(hi2c);
+			}
+			else if (hi2c == app->GetBatchgDriver().GetHandlePtr())
+			{
+				app->GetBatchgDriver().OnErrorCallback(hi2c);
+			}
 		}
 	}
 

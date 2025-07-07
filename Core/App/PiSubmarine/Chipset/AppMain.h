@@ -46,6 +46,7 @@ namespace PiSubmarine::Chipset
 		void I2CListenCompleteCallback(I2C_HandleTypeDef *hi2c);
 		void I2CSlaveRxCompleteCallback(I2C_HandleTypeDef *hi2c);
 		void I2CSlaveTxCompleteCallback(I2C_HandleTypeDef *hi2c);
+		void I2CErrorCallback(I2C_HandleTypeDef *hi2c);
 
 		I2CDriver& GetRpiDriver();
 		I2CDriver& GetChipsetDriver();
