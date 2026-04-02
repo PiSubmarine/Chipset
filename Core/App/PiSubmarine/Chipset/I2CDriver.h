@@ -2,33 +2,34 @@
 
 #include "main.h"
 #include <functional>
-#include <string.h>
+#include <cstring>
+#include "PiSubmarine/I2C/Api/IDriverAsync.h"
 
 namespace PiSubmarine::Chipset
 {
-	class I2CDriver
+	class I2CDriver : public I2C::Api::IDriverAsync
 	{
 		using I2CCallback = std::function<void(uint8_t deviceAddress, bool)>;
 
 		constexpr static uint32_t HalDelay = 1000;
 
 	public:
-		I2CDriver(I2C_HandleTypeDef& i2cHandle) : m_I2CHandle(i2cHandle)
+		explicit I2CDriver(I2C_HandleTypeDef& i2cHandle) : m_I2CHandle(i2cHandle)
 		{
 
 		}
 
-		bool Read(uint8_t deviceAddress, uint8_t* rxData, size_t len)
+		bool Read(uint8_t deviceAddress, uint8_t* rxData, size_t len) const
 		{
 			return HAL_I2C_Master_Receive(&m_I2CHandle, deviceAddress << 1, rxData, len, HalDelay) == HAL_OK;
 		}
 
-		bool Write(uint8_t deviceAddress, uint8_t* txData, size_t len)
+		bool Write(uint8_t deviceAddress, uint8_t* txData, size_t len) const
 		{
 			return HAL_I2C_Master_Transmit(&m_I2CHandle, deviceAddress << 1, txData, len, HalDelay) == HAL_OK;
 		}
 
-		bool ReadAsync(uint8_t deviceAddress, uint8_t* rxData, size_t len, I2CCallback callback)
+		bool ReadAsync(uint8_t deviceAddress, uint8_t* rxData, size_t len, I2CCallback callback) override
 		{
 			if(m_Callback)
 			{
@@ -39,7 +40,7 @@ namespace PiSubmarine::Chipset
 			return HAL_I2C_Master_Receive_DMA(&m_I2CHandle, deviceAddress << 1, rxData, len) == HAL_OK;
 		}
 
-		bool WriteAsync(uint8_t deviceAddress, uint8_t* txData, size_t len, I2CCallback callback)
+		bool WriteAsync(uint8_t deviceAddress, uint8_t* txData, size_t len, I2CCallback callback) override
 		{
 			if(m_Callback)
 			{
@@ -99,15 +100,15 @@ namespace PiSubmarine::Chipset
 			}
 		}
 
-		I2C_HandleTypeDef* GetHandlePtr() const
+		[[nodiscard]] I2C_HandleTypeDef* GetHandlePtr() const
 		{
 			return &m_I2CHandle;
 		}
 
 	private:
 		I2C_HandleTypeDef& m_I2CHandle;
-		uint8_t m_LastAddress;
-		I2CCallback m_Callback;
+		uint8_t m_LastAddress = 0;
+		I2CCallback m_Callback = nullptr;
 
 		std::array<uint8_t, 255> m_TransmitBuffer{0};
 	};

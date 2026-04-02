@@ -5,9 +5,15 @@
             "name": "default",
             "hidden": true,
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build/${presetName}",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "installDir": "${sourceDir}/out/install/${presetName}",
 		    "toolchainFile": "${sourceDir}/cmake/gcc-arm-none-eabi.cmake",
             "cacheVariables": {
+            },
+            "vendor": {
+                "jetbrains.com/clion": {
+                    "toolchain": "STM32CubeCLT"
+                }
             }
         },
         {

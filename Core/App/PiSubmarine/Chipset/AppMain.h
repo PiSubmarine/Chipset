@@ -4,7 +4,7 @@
 
 #include <chrono>
 #include "PiSubmarine/Chipset/I2CDriver.h"
-#include "PiSubmarine/Bq25792/Bq25792.h"
+#include "PiSubmarine/Bq25792/Device.h"
 #include "PiSubmarine/Chipset/Api/MicroVolts.h"
 #include "PiSubmarine/Chipset/Api/MicroKelvins.h"
 #include "PiSubmarine/Chipset/Api/PacketOut.h"
@@ -52,7 +52,7 @@ namespace PiSubmarine::Chipset
 		I2CDriver m_RpiI2CDriver{hi2c1};
 		I2CDriver m_ChipsetI2CDriver{hi2c2};
 		I2CDriver m_BatchgI2CDriver{hi2c3};
-		PiSubmarine::Bq25792::Device<I2CDriver> m_Batchg{m_BatchgI2CDriver};
+		PiSubmarine::Bq25792::Device m_Batchg{m_BatchgI2CDriver};
 		bool m_Lptim1Expired = false;
 		bool m_AdcComplete = false;
 		PowerState m_PowerState = PowerState::FullReset;

@@ -289,6 +289,7 @@ namespace PiSubmarine::Chipset
 		m_Batchg.SetDischargeOcpEnabled(true);
 		// m_Batchg.SetDischargeCurrentSensingEnabled(true);
 		m_Batchg.SetIlimHizCurrentLimitEnabled(false);
+		m_Batchg.SetAutomaticDpDmDetectionEnabled(false);
 		if (!m_Batchg.WriteDirty())
 		{
 			return false;
@@ -640,7 +641,7 @@ namespace PiSubmarine::Chipset
 			return;
 		}
 
-		printf("Shutdown in %u\n", static_cast<uint32_t>(shutdown.Delay.count()));
+		printf("Shutdown in %lu\n", static_cast<uint32_t>(shutdown.Delay.count()));
 
 		m_ShutdownDelay = shutdown.Delay;
 		m_PowerState = PowerState::Standby;

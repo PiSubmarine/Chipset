@@ -20,30 +20,26 @@ include("cmake/gcc-arm-none-eabi.cmake")
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
-# Enable CMake support for ASM and C languages
-enable_language(C ASM CXX)
+include(FetchContent)
 
-# Core project settings
-project("PiSubmarine.Chipset")
-set(_build_cmake_url "https://raw.githubusercontent.com/PiSubmarine/Build.CMake/main/PiSubmarine.Build.CMake.cmake")
-set(_build_cmake_local "${CMAKE_BINARY_DIR}/PiSubmarine.Build.CMake.cmake")
-if(NOT EXISTS "${_build_cmake_local}")
-    message(STATUS "Downloading ${_build_cmake_url}...")
-    file(DOWNLOAD "${_build_cmake_url}" "${_build_cmake_local}"
-        INACTIVITY_TIMEOUT 60
-        STATUS _status
-        LOG _log
-    )
+FetchContent_Declare(
+        PiSubmarineBuild
+        GIT_REPOSITORY "https://github.com/PiSubmarine/Build.CMake.git"
+        GIT_TAG        "main"
+)
 
-    list(GET _status 0 _status_code)
-    if(NOT _status_code EQUAL 0)
-        message(FATAL_ERROR "Failed to download ${_build_cmake_url}: ${_log}")
-    endif()
-else()
-    message(STATUS "Using cached file: ${_build_cmake_local}")
-endif()
-include("${_build_cmake_local}")
-PiSubmarineInitModule()
+FetchContent_MakeAvailable(PiSubmarineBuild)
+
+set(PISUBMARINE_BUILD_SYSTEM "${pisubmarinebuild_SOURCE_DIR}/PiSubmarine.Build.CMake.cmake")
+
+# For legacy modules
+set(_build_cmake_local "${pisubmarinebuild_SOURCE_DIR}/PiSubmarine.Build.CMake.cmake")
+
+include("${pisubmarinebuild_SOURCE_DIR}/PiSubmarine.Build.CMake.cmake")
+
+PiSubmarineInitModule("")
+project(${PISUBMARINE_MODULE_NAME} C CXX ASM)
+PiSubmarineConfigureModule()
 
 
 message("Build type: " ${CMAKE_BUILD_TYPE})
