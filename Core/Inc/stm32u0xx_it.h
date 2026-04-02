@@ -22,7 +22,7 @@
 #define __STM32U0xx_IT_H
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 /* Private includes ----------------------------------------------------------*/
@@ -48,15 +48,12 @@
 /* Exported functions prototypes ---------------------------------------------*/
 void NMI_Handler(void);
 void HardFault_Handler(void);
-void SVC_Handler(void);
-void PendSV_Handler(void);
-void SysTick_Handler(void);
 void EXTI0_1_IRQHandler(void);
 void DMA1_Channel1_IRQHandler(void);
 void DMA1_Channel2_3_IRQHandler(void);
 void DMA1_Ch4_7_DMAMUX_OVR_IRQHandler(void);
 void ADC_COMP1_IRQHandler(void);
-void TIM6_DAC_LPTIM1_IRQHandler(void);
+void TIM16_IRQHandler(void);
 void I2C1_IRQHandler(void);
 void I2C2_3_IRQHandler(void);
 /* USER CODE BEGIN EFP */
