@@ -16,4 +16,5 @@ namespace PiSubmarine::Chipset
     {
         return m_Registers[static_cast<size_t>(reg)];
     }
+
 }

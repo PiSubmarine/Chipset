@@ -3,6 +3,8 @@
 #include "PiSubmarine/Chipset/Api/Register.h"
 #include <array>
 
+#include "PiSubmarine/NormalizedIntFraction.h"
+
 namespace PiSubmarine::Chipset
 {
     class RegisterStorage

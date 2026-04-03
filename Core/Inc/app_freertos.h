@@ -55,6 +55,8 @@ extern "C" {
 
 /* USER CODE END EM */
 extern osThreadId_t powerTaskHandle;
+extern osThreadId_t adcTaskHandle;
+extern osMutexId_t SharedStateMutexHandle;
 
 /* Exported function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -62,6 +64,7 @@ extern osThreadId_t powerTaskHandle;
 /* USER CODE END FunctionPrototypes */
 
 void StartPowerTask(void *argument);
+void StartAdcTask(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 

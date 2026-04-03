@@ -49,7 +49,19 @@ osThreadId_t powerTaskHandle;
 const osThreadAttr_t powerTask_attributes = {
   .name = "powerTask",
   .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 128 * 4
+  .stack_size = 192 * 4
+};
+/* Definitions for adcTask */
+osThreadId_t adcTaskHandle;
+const osThreadAttr_t adcTask_attributes = {
+  .name = "adcTask",
+  .priority = (osPriority_t) osPriorityNormal,
+  .stack_size = 96 * 4
+};
+/* Definitions for SharedStateMutex */
+osMutexId_t SharedStateMutexHandle;
+const osMutexAttr_t SharedStateMutex_attributes = {
+  .name = "SharedStateMutex"
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -66,6 +78,8 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
+  /* creation of SharedStateMutex */
+  SharedStateMutexHandle = osMutexNew(&SharedStateMutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -84,6 +98,9 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
   /* creation of powerTask */
   powerTaskHandle = osThreadNew(StartPowerTask, NULL, &powerTask_attributes);
+
+  /* creation of adcTask */
+  adcTaskHandle = osThreadNew(StartAdcTask, NULL, &adcTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -106,6 +123,24 @@ __weak void StartPowerTask(void *argument)
   /* USER CODE BEGIN powerTask */
   (void)argument;
   /* USER CODE END powerTask */
+}
+
+/* USER CODE BEGIN Header_StartAdcTask */
+/**
+* @brief Function implementing the adcTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartAdcTask */
+__weak void StartAdcTask(void *argument)
+{
+  /* USER CODE BEGIN adcTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END adcTask */
 }
 
 /* Private application code --------------------------------------------------*/
