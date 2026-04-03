@@ -472,5 +472,5 @@ VP_SYS_VS_tim16.Signal=SYS_VS_tim16
 board=custom
 rtos.0.ip=STMicroelectronics.X-CUBE-FREERTOS.1.5.0
 rtos.0.mutexes.0=allocationType,Dynamic;controlBlockName,NULL;name,SharedStateMutex
-rtos.0.tasks.0=allocationType,Dynamic;bufferName,NULL;codeGen,As weak;controlBlockName,NULL;entry,StartPowerTask;name,powerTask;parameter,NULL;priority,osPriorityNormal;stackSize,192
-rtos.0.tasks.1=allocationType,Dynamic;bufferName,NULL;codeGen,As weak;controlBlockName,NULL;entry,StartAdcTask;name,adcTask;parameter,NULL;priority,osPriorityNormal;stackSize,96
+rtos.0.tasks.0=allocationType,Dynamic;bufferName,NULL;codeGen,As weak;controlBlockName,NULL;entry,StartPowerTask;name,powerTask;parameter,NULL;priority,osPriorityNormal;stackSize,128
+rtos.0.tasks.1=allocationType,Dynamic;bufferName,NULL;codeGen,As weak;controlBlockName,NULL;entry,StartAdcTask;name,adcTask;parameter,NULL;priority,osPriorityNormal;stackSize,82

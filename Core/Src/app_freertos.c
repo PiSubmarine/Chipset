@@ -49,14 +49,14 @@ osThreadId_t powerTaskHandle;
 const osThreadAttr_t powerTask_attributes = {
   .name = "powerTask",
   .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 192 * 4
+  .stack_size = 128 * 4
 };
 /* Definitions for adcTask */
 osThreadId_t adcTaskHandle;
 const osThreadAttr_t adcTask_attributes = {
   .name = "adcTask",
   .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 96 * 4
+  .stack_size = 82 * 4
 };
 /* Definitions for SharedStateMutex */
 osMutexId_t SharedStateMutexHandle;
@@ -135,11 +135,7 @@ __weak void StartPowerTask(void *argument)
 __weak void StartAdcTask(void *argument)
 {
   /* USER CODE BEGIN adcTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+  (void)argument;
   /* USER CODE END adcTask */
 }
 

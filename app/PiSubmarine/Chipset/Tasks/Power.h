@@ -24,7 +24,7 @@ namespace PiSubmarine::Chipset::Tasks
                 ChargingFinished = 1 << 5,
             };
 
-            std::chrono::microseconds Timestamp{0};
+            std::chrono::milliseconds Timestamp{0};
             Flags StatusFlags{0};
         };
 

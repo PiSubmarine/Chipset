@@ -127,6 +127,9 @@ namespace PiSubmarine::Chipset::Tasks
 
             m_PowerStatus.Swap();
 
+            volatile auto stack = osThreadGetStackSpace(osThreadGetId());
+            (void)stack;
+
             Delay(100ms);
         }
     }
