@@ -15,34 +15,15 @@ namespace
         {
             // HAL_DMA_Abort_IT will call the DMA abort callback and stop the stream
             HAL_DMA_Abort_IT(hi2c->hdmatx);
-            // hdmatx pointer may be left intact by HAL; clear it to be safe
-            hi2c->hdmatx = nullptr;
         }
 
         // Abort RX DMA if active
         if (hi2c->hdmarx != nullptr)
         {
             HAL_DMA_Abort_IT(hi2c->hdmarx);
-            hi2c->hdmarx = nullptr;
         }
 
-        // Reset HAL I2C state and error code so the peripheral can be re-used
-        hi2c->State = HAL_I2C_STATE_READY;
-        hi2c->ErrorCode = HAL_I2C_ERROR_NONE;
-
-        // Clear peripheral flags that may indicate STOP/AF/ARLO etc.
-        // Use the Instance pointer and the HAL macro for your device.
-#if defined(I2C_FLAG_STOPF)
-        __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_STOPF);
-#endif
-#if defined(I2C_FLAG_AF)
-        __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_AF);
-#endif
-#if defined(I2C_FLAG_ARLO)
-        __HAL_I2C_CLEAR_FLAG(hi2c, I2C_FLAG_ARLO);
-#endif
-
-        // Re-enable Listen mode (caller should do this after cleanup)
+        HAL_I2C_DisableListen_IT(hi2c);
     }
 }
 
@@ -192,8 +173,8 @@ namespace PiSubmarine::Chipset::Tasks
             if (HasAnyFlag(flags, WaitFlags::Error))
             {
                 // Abort any DMA and re-arm listen after cleanup
-                I2CAbortAndReset(m_I2c);
-                HAL_I2C_EnableListen_IT(m_I2c);
+                // I2CAbortAndReset(m_I2c);
+                // HAL_I2C_EnableListen_IT(m_I2c);
 
                 // Reset transient state
                 pointerReceived = false;
