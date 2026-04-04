@@ -1,4 +1,4 @@
-#include "Task.h"
+#include "PiSubmarine/Chipset/Tasks/Task.h"
 
 namespace PiSubmarine::Chipset::Tasks
 {
@@ -70,7 +70,7 @@ namespace PiSubmarine::Chipset::Tasks
         osThreadYield();
     }
 
-    void Task::Delay(std::chrono::milliseconds delay) const
+    void Task::Delay(std::chrono::milliseconds delay)
     {
         const uint32_t freq = osKernelGetTickFreq();
 
@@ -80,7 +80,7 @@ namespace PiSubmarine::Chipset::Tasks
         osDelay(ticks);
     }
 
-    void Task::DelayUntil(std::chrono::milliseconds delayUntil) const
+    void Task::DelayUntil(std::chrono::milliseconds delayUntil)
     {
         const uint32_t freq = osKernelGetTickFreq();
 

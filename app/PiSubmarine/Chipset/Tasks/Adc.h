@@ -23,7 +23,7 @@ namespace PiSubmarine::Chipset::Tasks
 
         explicit Adc(SharedState& sharedState);
 
-        [[noreturn]] void Run();
+        [[noreturn]] void Run() override;
 
         void AdcCompleteCallback() const;
         [[nodiscard]] osThreadId_t GetTaskHandle() const;

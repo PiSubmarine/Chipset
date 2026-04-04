@@ -6,6 +6,7 @@
 #include "Tasks/Power.h"
 #include "app_freertos.h"
 #include "Tasks/Adc.h"
+#include "Tasks/HostProtocol.h"
 
 namespace
 {
@@ -21,8 +22,8 @@ void StartPowerTask(void* argument)
 {
     (void)argument;
 
-    auto ChargerDriver = std::make_unique<PiSubmarine::I2C::Stm32::Driver>(&hi2c3);
-    PiSubmarine::Chipset::Tasks::Power powerTask(SharedState, *ChargerDriver);
+    PiSubmarine::I2C::Stm32::Driver ChargerDriver(&hi2c3);
+    PiSubmarine::Chipset::Tasks::Power powerTask(SharedState, ChargerDriver);
     powerTask.Run();
 }
 
@@ -32,6 +33,14 @@ void StartAdcTask(void* argument)
     PiSubmarine::Chipset::Tasks::Adc adcTask(SharedState);
     adcTask.Run();
 }
+
+void StartHostProtocolTask(void* argument)
+{
+    (void)argument;
+    PiSubmarine::Chipset::Tasks::HostProtocol hostProtocolTask(&hi2c1);
+    hostProtocolTask.Run();
+}
+
 
 int IsRtcCorrect()
 {

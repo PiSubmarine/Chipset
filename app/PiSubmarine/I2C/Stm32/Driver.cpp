@@ -1,6 +1,8 @@
 #include "PiSubmarine/I2C/Stm32/Driver.h"
 #include <cassert>
 
+#include "PiSubmarine/Chipset/Tasks/HostProtocol.h"
+
 namespace PiSubmarine::I2C::Stm32
 {
     std::vector<Driver*> Driver::Drivers{};
@@ -90,6 +92,12 @@ static void DispatchI2CEvent(I2C_HandleTypeDef* hi2c)
             }
             break;
         }
+    }
+
+    auto hostProtocolTask = PiSubmarine::Chipset::Tasks::HostProtocol::GetInstanceISR();
+    if (hostProtocolTask && hostProtocolTask->GetI2CHandle() == hi2c)
+    {
+        hostProtocolTask->HalErrorCallbackISR();
     }
 }
 

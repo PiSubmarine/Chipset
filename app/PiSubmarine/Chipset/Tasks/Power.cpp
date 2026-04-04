@@ -16,7 +16,7 @@ namespace PiSubmarine::Chipset::Tasks
     {
         while (!Instance)
         {
-            Yield();
+            Delay(10ms);
         }
 
         return *Instance;

@@ -26,6 +26,8 @@
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef StaticTask_t osStaticThreadDef_t;
+typedef StaticSemaphore_t osStaticMutexDef_t;
 /* USER CODE BEGIN PTD */
 
 /* USER CODE END PTD */
@@ -44,30 +46,68 @@
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-/* Definitions for powerTask */
-osThreadId_t powerTaskHandle;
-const osThreadAttr_t powerTask_attributes = {
-  .name = "powerTask",
+/* Definitions for PowerTask */
+osThreadId_t PowerTaskHandle;
+uint32_t PowerTaskBuffer[ 128 ];
+osStaticThreadDef_t PowerTaskControlBlock;
+const osThreadAttr_t PowerTask_attributes = {
+  .name = "PowerTask",
+  .stack_mem = &PowerTaskBuffer[0],
+  .stack_size = sizeof(PowerTaskBuffer),
+  .cb_mem = &PowerTaskControlBlock,
+  .cb_size = sizeof(PowerTaskControlBlock),
   .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 128 * 4
 };
-/* Definitions for adcTask */
-osThreadId_t adcTaskHandle;
-const osThreadAttr_t adcTask_attributes = {
-  .name = "adcTask",
+/* Definitions for AdcTask */
+osThreadId_t AdcTaskHandle;
+uint32_t AdcTaskBuffer[ 86 ];
+osStaticThreadDef_t AdcTaskControlBlock;
+const osThreadAttr_t AdcTask_attributes = {
+  .name = "AdcTask",
+  .stack_mem = &AdcTaskBuffer[0],
+  .stack_size = sizeof(AdcTaskBuffer),
+  .cb_mem = &AdcTaskControlBlock,
+  .cb_size = sizeof(AdcTaskControlBlock),
   .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 82 * 4
+};
+/* Definitions for HostProtocolTask */
+osThreadId_t HostProtocolTaskHandle;
+uint32_t HostProtocolTaskBuffer[ 128 ];
+osStaticThreadDef_t HostProtocolTaskControlBlocTask;
+const osThreadAttr_t HostProtocolTask_attributes = {
+  .name = "HostProtocolTask",
+  .stack_mem = &HostProtocolTaskBuffer[0],
+  .stack_size = sizeof(HostProtocolTaskBuffer),
+  .cb_mem = &HostProtocolTaskControlBlocTask,
+  .cb_size = sizeof(HostProtocolTaskControlBlocTask),
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for SharedStateMutex */
 osMutexId_t SharedStateMutexHandle;
+osStaticMutexDef_t SharedStateMutexControlBlock;
 const osMutexAttr_t SharedStateMutex_attributes = {
-  .name = "SharedStateMutex"
+  .name = "SharedStateMutex",
+  .cb_mem = &SharedStateMutexControlBlock,
+  .cb_size = sizeof(SharedStateMutexControlBlock),
 };
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
 /* USER CODE END FunctionPrototypes */
+
+/* USER CODE BEGIN 1 */
+/* Functions needed when configGENERATE_RUN_TIME_STATS is on */
+__weak void configureTimerForRunTimeStats(void)
+{
+
+}
+
+__weak unsigned long getRunTimeCounterValue(void)
+{
+return 0;
+}
+/* USER CODE END 1 */
 
 /**
   * @brief  FreeRTOS initialization
@@ -96,11 +136,14 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
-  /* creation of powerTask */
-  powerTaskHandle = osThreadNew(StartPowerTask, NULL, &powerTask_attributes);
+  /* creation of PowerTask */
+  PowerTaskHandle = osThreadNew(StartPowerTask, NULL, &PowerTask_attributes);
 
-  /* creation of adcTask */
-  adcTaskHandle = osThreadNew(StartAdcTask, NULL, &adcTask_attributes);
+  /* creation of AdcTask */
+  AdcTaskHandle = osThreadNew(StartAdcTask, NULL, &AdcTask_attributes);
+
+  /* creation of HostProtocolTask */
+  HostProtocolTaskHandle = osThreadNew(StartHostProtocolTask, NULL, &HostProtocolTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -110,33 +153,6 @@ void MX_FREERTOS_Init(void) {
   /* add events, ... */
   /* USER CODE END RTOS_EVENTS */
 
-}
-/* USER CODE BEGIN Header_StartPowerTask */
-/**
-* @brief Function implementing the powerTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartPowerTask */
-__weak void StartPowerTask(void *argument)
-{
-  /* USER CODE BEGIN powerTask */
-  (void)argument;
-  /* USER CODE END powerTask */
-}
-
-/* USER CODE BEGIN Header_StartAdcTask */
-/**
-* @brief Function implementing the adcTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartAdcTask */
-__weak void StartAdcTask(void *argument)
-{
-  /* USER CODE BEGIN adcTask */
-  (void)argument;
-  /* USER CODE END adcTask */
 }
 
 /* Private application code --------------------------------------------------*/

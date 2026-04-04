@@ -54,8 +54,9 @@ extern "C" {
 /* USER CODE BEGIN EM */
 
 /* USER CODE END EM */
-extern osThreadId_t powerTaskHandle;
-extern osThreadId_t adcTaskHandle;
+extern osThreadId_t PowerTaskHandle;
+extern osThreadId_t AdcTaskHandle;
+extern osThreadId_t HostProtocolTaskHandle;
 extern osMutexId_t SharedStateMutexHandle;
 
 /* Exported function prototypes -----------------------------------------------*/
@@ -63,11 +64,15 @@ extern osMutexId_t SharedStateMutexHandle;
 
 /* USER CODE END FunctionPrototypes */
 
-void StartPowerTask(void *argument);
-void StartAdcTask(void *argument);
+extern void StartPowerTask(void *argument);
+extern void StartAdcTask(void *argument);
+extern void StartHostProtocolTask(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
+/* Hook prototypes */
+void configureTimerForRunTimeStats(void);
+unsigned long getRunTimeCounterValue(void);
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 

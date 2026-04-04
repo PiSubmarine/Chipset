@@ -9,7 +9,10 @@ add_executable(${PISUBMARINE_MODULE_NAME}
         PiSubmarine/Chipset/SharedState.cpp
         PiSubmarine/Chipset/SharedState.h
         PiSubmarine/Chipset/Tasks/Adc.cpp
-        PiSubmarine/Chipset/AtomicStorage.h)
+        PiSubmarine/Chipset/AtomicStorage.h
+        PiSubmarine/Chipset/Tasks/HostProtocol.cpp
+        PiSubmarine/Chipset/Tasks/HostProtocol.h
+        PiSubmarine/Chipset/Heap.cpp)
 target_include_directories(${PISUBMARINE_MODULE_NAME} PUBLIC "./")
 PiSubmarineInitTarget(${PISUBMARINE_MODULE_NAME})
 

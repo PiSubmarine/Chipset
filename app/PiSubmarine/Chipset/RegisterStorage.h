@@ -10,12 +10,16 @@ namespace PiSubmarine::Chipset
     class RegisterStorage
     {
     public:
-        uint32_t& At(Api::Register reg);
+        using RegisterType = uint32_t;
 
-        uint32_t& operator[](Api::Register reg);
-        const uint32_t& operator[](Api::Register reg) const;
+        RegisterType& At(Api::Register reg);
+
+        RegisterType& operator[](Api::Register reg);
+        const RegisterType& operator[](Api::Register reg) const;
+        [[nodiscard]] uint8_t* Data(Api::Register reg = Api::Register::Status);
+        [[nodiscard]] size_t Size(Api::Register reg = Api::Register::Status) const;
 
     private:
-        std::array<uint32_t, 9> m_Registers{};
+        std::array<RegisterType, 9> m_Registers{};
     };
 }

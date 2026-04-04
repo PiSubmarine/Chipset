@@ -10,13 +10,13 @@ namespace PiSubmarine::Chipset::Tasks
     class Task
     {
     public:
+        virtual ~Task() = default;
         static std::chrono::milliseconds GetUptime();
 
         template <typename Rep, typename Period>
         static size_t ToTicks(std::chrono::duration<Rep, Period> duration)
         {
             const uint64_t freq = osKernelGetTickFreq();
-
             // Convert input duration to nanoseconds to preserve precision
             const uint64_t ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
 
@@ -35,10 +35,11 @@ namespace PiSubmarine::Chipset::Tasks
         static void ToRtc(std::chrono::milliseconds Timestamp, RTC_TimeTypeDef &OutTime, RTC_DateTypeDef &OutDate);
         static void SetRtc(RTC_TimeTypeDef &Time, RTC_DateTypeDef &Date);
 
-    protected:
         static void Yield();
-        void Delay(std::chrono::milliseconds) const;
-        void DelayUntil(std::chrono::milliseconds) const;
+        static void Delay(std::chrono::milliseconds);
+        static void DelayUntil(std::chrono::milliseconds);
+
+        [[noreturn]] virtual void Run() = 0;
 
     };
 }

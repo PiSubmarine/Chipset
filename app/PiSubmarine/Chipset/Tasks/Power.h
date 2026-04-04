@@ -35,7 +35,7 @@ namespace PiSubmarine::Chipset::Tasks
 
         explicit Power(SharedState& sharedState, I2C::Stm32::Driver& chargerI2CDriver);
 
-        [[noreturn]] void Run();
+        [[noreturn]] void Run() override;
 
     private:
         static Power* Instance;
