@@ -93,6 +93,20 @@ namespace PiSubmarine::Chipset::Tasks
                 continue;
             }
 
+            auto isChargerOverheating = m_Charger.IsInThermalRegulation();
+            if (!isChargerOverheating.has_value())
+            {
+                Delay(100ms);
+                continue;
+            }
+
+            auto chargerTemperature = m_Charger.GetDieTemperature();
+            if (!chargerTemperature.has_value())
+            {
+                Delay(100ms);
+                continue;
+            }
+
             bool vbusPresent = RegUtils::HasAnyFlag(status0.value(), Bq25792::ChargerStatus0Flags::VbusPresentStat);
             bool isCharging = chargeStatus != Bq25792::ChargeStatus::NotCharging && chargeStatus != Bq25792::ChargeStatus::ChargingTerminationDone;
             bool isChargingFinished = chargeStatus == Bq25792::ChargeStatus::ChargingTerminationDone;
@@ -123,6 +137,13 @@ namespace PiSubmarine::Chipset::Tasks
             {
                 powerStatus.StatusFlags = powerStatus.StatusFlags | PowerStatus::Flags::ChargingFinished;
             }
+            if (isChargerOverheating.value())
+            {
+                powerStatus.StatusFlags = powerStatus.StatusFlags | PowerStatus::Flags::ChargerOverheat;
+            }
+            powerStatus.ChargerTemperature = Units::MicroKelvins(chargerTemperature.value().Halves * 500000 + 273150000);
+
+            // TODO Charger Overcurrent
             powerStatus.Timestamp = GetUptime();
 
             m_PowerStatus.Swap();
@@ -132,6 +153,11 @@ namespace PiSubmarine::Chipset::Tasks
 
             Delay(100ms);
         }
+    }
+
+    Power::PowerStatus Power::GetStatus() const
+    {
+        return m_PowerStatus.Read();
     }
 
     bool Power::IsReg12Enabled()
@@ -185,7 +211,7 @@ namespace PiSubmarine::Chipset::Tasks
 
         return SetChargerMinimalSystemVoltage() && DisableChargerTemperatureSensor() && DisableChargerWatchdog() &&
             EnableChargerDischargeOvercurrentProtection() && DisableChargerPresetCurrentLimit() &&
-            DisableChargerUsbLines();
+            DisableChargerUsbLines() && EnableChargerAdc();
     }
 
     bool Power::SetChargerMinimalSystemVoltage() const
@@ -228,5 +254,11 @@ namespace PiSubmarine::Chipset::Tasks
             m_Charger.SetAutomaticDpDmDetectionEnabled(false) == Bq25792::ProtocolError::Ok &&
             m_Charger.SetDpDac(Bq25792::DpDac::HiZ) == Bq25792::ProtocolError::Ok &&
             m_Charger.SetDmDac(Bq25792::DmDac::HiZ) == Bq25792::ProtocolError::Ok;
+    }
+
+    bool Power::EnableChargerAdc() const
+    {
+        return m_Charger.SetAdcEnabled(true) == Bq25792::ProtocolError::Ok &&
+            m_Charger.SetAdcSampleSpeed(Bq25792::AdcSpeed::Resolution15bits) == Bq25792::ProtocolError::Ok;
     }
 }

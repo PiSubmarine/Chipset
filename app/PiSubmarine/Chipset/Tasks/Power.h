@@ -22,10 +22,13 @@ namespace PiSubmarine::Chipset::Tasks
                 VbusPresent = 1 << 3,
                 ChargingOngoing = 1 << 4,
                 ChargingFinished = 1 << 5,
+                ChargerOvercurrent = 1 << 6,
+                ChargerOverheat = 1 << 7,
             };
 
             std::chrono::milliseconds Timestamp{0};
             Flags StatusFlags{0};
+            Units::MicroKelvins ChargerTemperature{0};
         };
 
         static Power& GetInstance();
@@ -36,6 +39,8 @@ namespace PiSubmarine::Chipset::Tasks
         explicit Power(SharedState& sharedState, I2C::Stm32::Driver& chargerI2CDriver);
 
         [[noreturn]] void Run() override;
+
+        [[nodiscard]] PowerStatus GetStatus() const;
 
     private:
         static Power* Instance;
@@ -63,5 +68,6 @@ namespace PiSubmarine::Chipset::Tasks
         [[nodiscard]] bool EnableChargerDischargeOvercurrentProtection() const;
         [[nodiscard]] bool DisableChargerPresetCurrentLimit() const;
         [[nodiscard]] bool DisableChargerUsbLines() const;
+        [[nodiscard]] bool EnableChargerAdc() const;
     };
 }
