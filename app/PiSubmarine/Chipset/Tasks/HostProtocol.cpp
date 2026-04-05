@@ -80,12 +80,13 @@ namespace PiSubmarine::Chipset::Tasks
             uint32_t flagsAll = ToInt(WaitFlags::Address | WaitFlags::Listen | WaitFlags::Transmit | WaitFlags::Receive | WaitFlags::Error);
             auto waitTicks = ToTicks(500ms);
             uint32_t flagsInt = osThreadFlagsWait(flagsAll, osFlagsWaitAny, waitTicks);
-            SetActivityLed(!GetActivityLed());
 
             if (flagsInt & osFlagsError)
             {
+                SetActivityLed(true);
                 continue;
             }
+            SetActivityLed(false);
 
             // auto flags = static_cast<WaitFlags>(flagsInt);
 
