@@ -97,8 +97,17 @@ namespace PiSubmarine::Chipset::Tasks
             if (m_NextRegisterUpdateTime <= GetUptime())
             {
                 FillRegisterStorage();
-                SetActivityLed(noFlagSet);
                 m_NextRegisterUpdateTime = GetUptime() + UpdateInterval;
+            }
+
+            if (!noFlagSet)
+            {
+                SetActivityLed(false);
+                m_LedEnableTime = GetUptime() + LedInterval;
+            }
+            else if (m_LedEnableTime <= GetUptime())
+            {
+                SetActivityLed(true);
             }
         }
     }
@@ -250,7 +259,7 @@ namespace PiSubmarine::Chipset::Tasks
         HAL_GPIO_WritePin(LED_ACTIVITY_GPIO_Port, LED_ACTIVITY_Pin, static_cast<GPIO_PinState>(enabled));
     }
 
-    void HostProtocol::FillRegisterStorage()
+    void HostProtocol::FillRegisterStorage() const
     {
         using namespace RegUtils;
         Power& powerTask = Power::GetInstance();

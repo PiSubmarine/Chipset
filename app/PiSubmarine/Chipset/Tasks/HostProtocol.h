@@ -13,6 +13,7 @@ namespace PiSubmarine::Chipset::Tasks
         static HostProtocol* GetInstanceISR();
 
         constexpr static std::chrono::milliseconds UpdateInterval = std::chrono::milliseconds(10);
+        constexpr static std::chrono::milliseconds LedInterval = std::chrono::milliseconds(500);
 
         explicit HostProtocol(I2C_HandleTypeDef *hi2c);
 
@@ -44,6 +45,7 @@ namespace PiSubmarine::Chipset::Tasks
         osThreadId_t m_TaskHandle = nullptr;
         I2C_HandleTypeDef *m_I2c = nullptr;
         std::chrono::milliseconds m_NextRegisterUpdateTime{0};
+        std::chrono::milliseconds m_LedEnableTime{0};
 
         uint8_t m_TransferDirection = 0;
         uint16_t m_AddrMatchCode = 0;
@@ -53,7 +55,7 @@ namespace PiSubmarine::Chipset::Tasks
         AtomicStorage<RegisterStorage> m_RegisterStorage{};
         std::array<uint8_t, 9> m_ReceiveBuffer{};
 
-        void FillRegisterStorage();
+        void FillRegisterStorage() const;
 
     };
 }
