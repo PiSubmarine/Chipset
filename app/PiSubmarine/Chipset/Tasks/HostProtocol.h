@@ -43,7 +43,11 @@ namespace PiSubmarine::Chipset::Tasks
         uint8_t m_TransferDirection = 0;
         uint16_t m_AddrMatchCode = 0;
         Api::Register m_Register = Api::Register::Status;
+        bool m_RegisterReceived = false;
+        size_t m_ExpectedPayloadBytes = 0;
         RegisterStorage m_RegisterStorage;
+
+        void FillRegisterStorage();
 
     };
 }
