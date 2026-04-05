@@ -1,7 +1,6 @@
 #pragma once
 
-#include "cmsis_os2.h"
-#include "cmsis_gcc.h"
+#include "PiSubmarine/Chipset/CriticalSection.h"
 
 namespace PiSubmarine::Chipset
 {
@@ -14,6 +13,11 @@ namespace PiSubmarine::Chipset
             return *m_BufferRead;
         }
 
+        T& GetReadBuffer() const
+        {
+            return *m_BufferRead;
+        }
+
         T& GetWriteBuffer() const
         {
             return *m_BufferWrite;
@@ -21,14 +25,13 @@ namespace PiSubmarine::Chipset
 
         void Swap()
         {
-            uint32_t priorityMask = __get_PRIMASK();
-            __disable_irq();
+            CriticalSection::EnterCriticalSection();
 
             auto tmp = m_BufferRead;
             m_BufferRead = m_BufferWrite;
             m_BufferWrite = tmp;
 
-            __set_PRIMASK(priorityMask);
+            CriticalSection::ExitCriticalSection();
         }
 
     private:

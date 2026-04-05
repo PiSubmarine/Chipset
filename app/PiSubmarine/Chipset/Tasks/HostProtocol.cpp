@@ -51,6 +51,7 @@ namespace PiSubmarine::Chipset::Tasks
     {
         m_TaskHandle = osThreadGetId();
 
+        /*
         m_RegisterStorage[static_cast<Api::Register>(0)] = 0xABABABAB;
         m_RegisterStorage[static_cast<Api::Register>(1)] = 0xABABABAB;
         m_RegisterStorage[static_cast<Api::Register>(2)] = 0xABABABAB;
@@ -63,6 +64,7 @@ namespace PiSubmarine::Chipset::Tasks
 
         // Default pointer
         m_Register = Api::Register::Status;
+        */
 
         Instance = this;
     }
@@ -78,18 +80,26 @@ namespace PiSubmarine::Chipset::Tasks
         while (true)
         {
             uint32_t flagsAll = ToInt(WaitFlags::Address | WaitFlags::Listen | WaitFlags::Transmit | WaitFlags::Receive | WaitFlags::Error);
-            auto waitTicks = ToTicks(500ms);
+            auto waitTicks = ToTicks(10ms);
             uint32_t flagsInt = osThreadFlagsWait(flagsAll, osFlagsWaitAny, waitTicks);
 
-            if (flagsInt & osFlagsError)
+            bool noFlagSet = flagsInt & osFlagsError;
+            SetActivityLed(noFlagSet);
+            auto flags = static_cast<WaitFlags>(flagsInt);
+
+            if ((noFlagSet && HAL_I2C_GetState(m_I2c) == HAL_I2C_STATE_LISTEN) || HasAnyFlag(flags, WaitFlags::Listen))
             {
-                SetActivityLed(true);
-                continue;
+                // I2C is idle for a long time
+                // OR
+                // STOP condition, I2C will be idle in the near future
+                m_RegisterStorage.Swap();
             }
-            SetActivityLed(false);
 
-            // auto flags = static_cast<WaitFlags>(flagsInt);
-
+            if (m_NextRegisterUpdateTime <= GetUptime())
+            {
+                FillRegisterStorage();
+                m_NextRegisterUpdateTime = GetUptime() + UpdateInterval;
+            }
         }
     }
 
@@ -110,15 +120,33 @@ namespace PiSubmarine::Chipset::Tasks
 
         if (transferDirection == I2C_DIRECTION_RECEIVE) // master reads
         {
-            uint8_t* txPtr = m_RegisterStorage.Data(m_Register);
-            uint16_t txLen = m_RegisterStorage.Size(m_Register);
+            // Abort the RX DMA that was speculatively armed in HalReceiveCompleteCallbackISR
+            if (m_I2c->hdmarx != nullptr)
+            {
+                HAL_DMA_Abort_IT(m_I2c->hdmarx);
+            }
 
-            HAL_I2C_Slave_Seq_Transmit_DMA(m_I2c, txPtr, txLen, I2C_FIRST_FRAME);
+            auto& regStorage = m_RegisterStorage.GetReadBuffer();
+            // auto regStorage = m_RegisterStorage.Read();
+            uint8_t* txPtr = regStorage.Data(m_Register);
+            uint16_t txLen = regStorage.Size(m_Register);
+
+            // FIX: The first byte was already preloaded into TXDR.
+            // We only configure the TX DMA for the REMAINING bytes (if any).
+            if (txLen > 1)
+            {
+                // Offset the pointer by 1 and decrease length by 1
+                HAL_I2C_Slave_Seq_Transmit_DMA(m_I2c, txPtr + 1, txLen - 1, I2C_FIRST_FRAME);
+            }
         }
-        else
+        else // master writes
         {
             m_RegisterReceived = false;
             m_ExpectedPayloadBytes = 0;
+
+            // Optional safety measure: Flush TXDR by setting the TXE bit in ISR
+            // in case it holds stale preloaded data from an aborted read
+            m_I2c->Instance->ISR |= I2C_ISR_TXE;
 
             HAL_I2C_Slave_Seq_Receive_DMA(m_I2c,
                 reinterpret_cast<uint8_t*>(&m_Register),
@@ -126,7 +154,6 @@ namespace PiSubmarine::Chipset::Tasks
                 I2C_FIRST_FRAME);
         }
 
-        // optional: still notify task for bookkeeping
         osThreadFlagsSet(m_TaskHandle, RegUtils::ToInt(WaitFlags::Address));
     }
 
@@ -176,24 +203,27 @@ namespace PiSubmarine::Chipset::Tasks
         {
             // We just received the 1-byte pointer.
             m_RegisterReceived = true;
+            auto& regStorage = m_RegisterStorage.GetReadBuffer();
+            // auto regStorage = m_RegisterStorage.Read();
+            m_ExpectedPayloadBytes = regStorage.Size(m_Register);
 
-            // Decide how many payload bytes we will accept for this register
-            m_ExpectedPayloadBytes = m_RegisterStorage.Size(m_Register);
-
-            // If master continues clocking, prepare to receive up to the register size.
-            // Use NEXT_FRAME to indicate continuation of the same sequence.
-            // If expectedPayloadBytes == 0, we don't start another DMA.
+            // FIX: Preload the first byte into the TX Data Register immediately.
+            // Because clock stretching is disabled, the HAL DMA setup in AddrCallback
+            // is too slow. We must queue the first byte now while the bus is idle.
             if (m_ExpectedPayloadBytes > 0)
             {
-                HAL_I2C_Slave_Seq_Receive_DMA(m_I2c, m_RegisterStorage.Data(m_Register), static_cast<uint16_t>(m_ExpectedPayloadBytes), I2C_NEXT_FRAME);
+                m_I2c->Instance->TXDR = regStorage.Data(m_Register)[0];
+
+                // Note: If your protocol ONLY reads (Write Reg -> Repeated Start -> Read),
+                // you do not need to arm the Receive DMA here.
+                // However, if your protocol also supports master WRITING payload data, keep this:
+                HAL_I2C_Slave_Seq_Receive_DMA(m_I2c, regStorage.Data(m_Register), static_cast<uint16_t>(m_ExpectedPayloadBytes), I2C_NEXT_FRAME);
             }
         }
         else
         {
-            // Payload receive completed (or master sent fewer bytes and ended)
-            // pointerReceived remains true until STOP (ListenCplt) to allow partial writes
-            // Optionally: validate or notify other tasks about updated register
-            m_RegisterReceived = true; // keep true until STOP
+            // Payload receive completed
+            m_RegisterReceived = true;
         }
     }
 
@@ -251,18 +281,18 @@ namespace PiSubmarine::Chipset::Tasks
         {
             status = status | Api::Status::Reg12PowerGood;
         }
-        m_RegisterStorage[Api::Register::Status] = ToInt(status);
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::Status] = ToInt(status);
 
         auto rtc = GetRtcTime();
         auto rtcHigh = static_cast<uint32_t>(rtc.count() >> 32);
         auto rtcLow = static_cast<uint32_t>(rtc.count());
-        m_RegisterStorage[Api::Register::RtcHigh] = rtcHigh;
-        m_RegisterStorage[Api::Register::RtcLow] = rtcLow;
-        m_RegisterStorage[Api::Register::Reg5Voltage] = adcMeasurements.Reg5Voltage.Get();
-        m_RegisterStorage[Api::Register::RegPiVoltage] = adcMeasurements.RegPiVoltage.Get();
-        m_RegisterStorage[Api::Register::BallastPosition] = adcMeasurements.BallastPosition.Get();
-        m_RegisterStorage[Api::Register::ChipsetTemperature] = adcMeasurements.ChipsetTemperature.Get();
-        m_RegisterStorage[Api::Register::ChargerTemperature] = powerStatus.ChargerTemperature.Get();
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::RtcHigh] = rtcHigh;
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::RtcLow] = rtcLow;
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::Reg5Voltage] = adcMeasurements.Reg5Voltage.Get();
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::RegPiVoltage] = adcMeasurements.RegPiVoltage.Get();
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::BallastPosition] = adcMeasurements.BallastPosition.Get();
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::ChipsetTemperature] = adcMeasurements.ChipsetTemperature.Get();
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::ChargerTemperature] = powerStatus.ChargerTemperature.Get();
     }
 }
 

@@ -30,15 +30,15 @@ namespace PiSubmarine::Chipset::Tasks
 
         while (true)
         {
-            next += 10ms;
+            next += ScanInterval;
 
             HAL_ADC_Stop_DMA(&hadc1);
             HAL_ADC_Start_DMA(&hadc1, reinterpret_cast<uint32_t*>(m_AdcBuffer.data()), m_AdcBuffer.size());
             __HAL_DMA_DISABLE_IT(hadc1.DMA_Handle, DMA_IT_HT);
-            uint32_t flags = osThreadFlagsWait(0x01, osFlagsWaitAny, ToTicks(10ms));
+            uint32_t flags = osThreadFlagsWait(0x01, osFlagsWaitAny, ToTicks(ScanInterval));
             if (flags & osFlagsError)
             {
-                DelayUntil(next);
+                // DelayUntil(next);
                 continue;
             }
 

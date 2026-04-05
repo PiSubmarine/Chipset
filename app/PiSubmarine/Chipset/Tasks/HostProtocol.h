@@ -1,5 +1,6 @@
 #pragma once
 
+#include "PiSubmarine/Chipset/AtomicStorage.h"
 #include "PiSubmarine/Chipset/RegisterStorage.h"
 #include "PiSubmarine/Chipset/Tasks/Task.h"
 
@@ -10,6 +11,8 @@ namespace PiSubmarine::Chipset::Tasks
     public:
         static HostProtocol& GetInstance();
         static HostProtocol* GetInstanceISR();
+
+        constexpr static std::chrono::milliseconds UpdateInterval = std::chrono::milliseconds(10);
 
         explicit HostProtocol(I2C_HandleTypeDef *hi2c);
 
@@ -40,12 +43,15 @@ namespace PiSubmarine::Chipset::Tasks
 
         osThreadId_t m_TaskHandle = nullptr;
         I2C_HandleTypeDef *m_I2c = nullptr;
+        std::chrono::milliseconds m_NextRegisterUpdateTime{0};
+
         uint8_t m_TransferDirection = 0;
         uint16_t m_AddrMatchCode = 0;
         Api::Register m_Register = Api::Register::Status;
         bool m_RegisterReceived = false;
         size_t m_ExpectedPayloadBytes = 0;
-        RegisterStorage m_RegisterStorage;
+        AtomicStorage<RegisterStorage> m_RegisterStorage{};
+        std::array<uint8_t, 9> m_ReceiveBuffer{};
 
         void FillRegisterStorage();
 

@@ -10,6 +10,8 @@ namespace PiSubmarine::Chipset::Tasks
     class Adc : public Task
     {
     public:
+        constexpr static std::chrono::milliseconds ScanInterval = std::chrono::milliseconds(10);
+
         struct Measurements
         {
             std::chrono::milliseconds Timestamp;
