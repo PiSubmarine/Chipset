@@ -16,6 +16,7 @@ namespace PiSubmarine::Chipset::Tasks
         {
             std::chrono::milliseconds Timestamp;
             NormalizedIntFraction<12> BallastPosition;
+            Units::MicroVolts ChipsetVoltage;
             Units::MicroVolts Reg5Voltage;
             Units::MicroVolts RegPiVoltage;
             Units::MicroKelvins ChipsetTemperature;
@@ -38,7 +39,6 @@ namespace PiSubmarine::Chipset::Tasks
         SharedState& m_SharedState;
         osThreadId_t m_TaskHandle{};
         std::array<uint16_t, 5> m_AdcBuffer{};
-        std::array<uint32_t, 4> m_ConversionBuffer{};
 
         AtomicStorage<Measurements> m_Measurements;
 
@@ -46,7 +46,9 @@ namespace PiSubmarine::Chipset::Tasks
         [[nodiscard]] Units::MicroVolts GetReg5Voltage() const;
         [[nodiscard]] Units::MicroVolts GetRegPiVoltage() const;
         [[nodiscard]] Units::MicroKelvins GetMcuTemperature() const;
-        [[nodiscard]] Units::MicroVolts GetVddVoltage() const;
+        [[nodiscard]] Units::MicroVolts GetAdcReferenceVoltage() const;
+
+        static void ADC_Calibrate(ADC_HandleTypeDef* hadc);
 
     };
 }

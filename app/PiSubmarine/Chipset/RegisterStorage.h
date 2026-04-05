@@ -19,6 +19,6 @@ namespace PiSubmarine::Chipset
         [[nodiscard]] size_t Size(Api::Register reg = Api::Register::Status) const;
 
     private:
-        std::array<RegisterType, 9> m_Registers{};
+        std::array<RegisterType, static_cast<size_t>(Api::Register::Command)> m_Registers{};
     };
 }

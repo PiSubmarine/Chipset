@@ -84,7 +84,6 @@ namespace PiSubmarine::Chipset::Tasks
             uint32_t flagsInt = osThreadFlagsWait(flagsAll, osFlagsWaitAny, waitTicks);
 
             bool noFlagSet = flagsInt & osFlagsError;
-            SetActivityLed(noFlagSet);
             auto flags = static_cast<WaitFlags>(flagsInt);
 
             if ((noFlagSet && HAL_I2C_GetState(m_I2c) == HAL_I2C_STATE_LISTEN) || HasAnyFlag(flags, WaitFlags::Listen))
@@ -98,6 +97,7 @@ namespace PiSubmarine::Chipset::Tasks
             if (m_NextRegisterUpdateTime <= GetUptime())
             {
                 FillRegisterStorage();
+                SetActivityLed(noFlagSet);
                 m_NextRegisterUpdateTime = GetUptime() + UpdateInterval;
             }
         }
@@ -288,6 +288,7 @@ namespace PiSubmarine::Chipset::Tasks
         auto rtcLow = static_cast<uint32_t>(rtc.count());
         m_RegisterStorage.GetWriteBuffer()[Api::Register::RtcHigh] = rtcHigh;
         m_RegisterStorage.GetWriteBuffer()[Api::Register::RtcLow] = rtcLow;
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::ChipsetVoltage] = adcMeasurements.ChipsetVoltage.Get();
         m_RegisterStorage.GetWriteBuffer()[Api::Register::Reg5Voltage] = adcMeasurements.Reg5Voltage.Get();
         m_RegisterStorage.GetWriteBuffer()[Api::Register::RegPiVoltage] = adcMeasurements.RegPiVoltage.Get();
         m_RegisterStorage.GetWriteBuffer()[Api::Register::BallastPosition] = adcMeasurements.BallastPosition.Get();
