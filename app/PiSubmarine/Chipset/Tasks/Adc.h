@@ -37,7 +37,7 @@ namespace PiSubmarine::Chipset::Tasks
 
         SharedState& m_SharedState;
         osThreadId_t m_TaskHandle{};
-        std::array<uint16_t, 4> m_AdcBuffer{};
+        std::array<uint16_t, 5> m_AdcBuffer{};
         std::array<uint32_t, 4> m_ConversionBuffer{};
 
         AtomicStorage<Measurements> m_Measurements;
