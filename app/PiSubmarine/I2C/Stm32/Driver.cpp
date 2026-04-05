@@ -73,6 +73,16 @@ namespace PiSubmarine::I2C::Stm32
     {
         return m_I2c;
     }
+
+    bool Driver::WriteRead(uint8_t deviceAddress, uint8_t* txData, std::size_t txLen, uint8_t* rxData,
+        std::size_t rxLen)
+    {
+        if (!Write(deviceAddress, txData, txLen))
+        {
+            return false;
+        }
+        return Read(deviceAddress, rxData, rxLen);
+    }
 }
 
 /**

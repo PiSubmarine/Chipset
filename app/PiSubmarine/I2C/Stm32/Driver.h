@@ -26,6 +26,8 @@ namespace PiSubmarine::I2C::Stm32
         bool Read(uint8_t deviceAddress, uint8_t* rxData, std::size_t len) override;
         [[nodiscard]] osThreadId_t GetTaskHandle() const;
         [[nodiscard]] I2C_HandleTypeDef* GetI2CHandle() const;
+        bool WriteRead(uint8_t deviceAddress, uint8_t* txData, std::size_t txLen, uint8_t* rxData,
+            std::size_t rxLen) override;
 
     private:
         static std::vector<Driver*> Drivers;
