@@ -28,6 +28,12 @@ namespace PiSubmarine::Chipset::Tasks
 
             std::chrono::milliseconds Timestamp{0};
             Flags StatusFlags{0};
+            Units::MicroAmperes ChargerBusCurrent{0};
+            Units::MicroAmperes BatteryCurrent{0};
+            Units::MicroVolts ChargerBusVoltage{0};
+            Units::MicroVolts BatteryVoltage{0};
+            Units::MicroVolts ChargerSystemVoltage{0};
+            Units::MicroKelvins BatteryTemperature{0};
             Units::MicroKelvins ChargerTemperature{0};
         };
 
@@ -35,6 +41,7 @@ namespace PiSubmarine::Chipset::Tasks
         constexpr static auto Reg5Threshold = Units::MicroVolts(4900000);
         constexpr static auto RegPiThreshold = Units::MicroVolts(3200000);
         constexpr static auto MaxChargingCurrent = Units::MicroAmperes(1'000'000);
+        constexpr static auto VsysThreshold = Units::MicroVolts(12000000);
 
         explicit Power(SharedState& sharedState, I2C::Stm32::Driver& chargerI2CDriver);
 
@@ -49,9 +56,12 @@ namespace PiSubmarine::Chipset::Tasks
         static void SetReg12Enabled(bool enabled);
         static bool IsReg5Enabled();
         static void SetReg5Enabled(bool enabled);
+
+        static void SetBatLedEnabled(bool enabled);
         static void SetReg12LedEnabled(bool enabled);
         static void SetReg5LedEnabled(bool enabled);
         static void SetRegPiLedEnabled(bool enabled);
+
         static bool IsReg12PowerGood();
 
         SharedState& m_SharedState;
@@ -69,5 +79,7 @@ namespace PiSubmarine::Chipset::Tasks
         [[nodiscard]] bool DisableChargerPresetCurrentLimit() const;
         [[nodiscard]] bool DisableChargerUsbLines() const;
         [[nodiscard]] bool EnableChargerAdc() const;
+
+        Units::MicroVolts GetVsys() const;
     };
 }

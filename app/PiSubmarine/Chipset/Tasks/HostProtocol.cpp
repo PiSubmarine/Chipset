@@ -303,6 +303,13 @@ namespace PiSubmarine::Chipset::Tasks
         m_RegisterStorage.GetWriteBuffer()[Api::Register::BallastPosition] = adcMeasurements.BallastPosition.Get();
         m_RegisterStorage.GetWriteBuffer()[Api::Register::ChipsetTemperature] = adcMeasurements.ChipsetTemperature.Get();
         m_RegisterStorage.GetWriteBuffer()[Api::Register::ChargerTemperature] = powerStatus.ChargerTemperature.Get();
+
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::ChargerBusCurrent] = powerStatus.ChargerBusCurrent.Get();
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::BatteryCurrent] = powerStatus.BatteryCurrent.Get();
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::ChargerBusVoltage] = powerStatus.ChargerBusVoltage.Get();
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::BatteryVoltage] = powerStatus.BatteryVoltage.Get();
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::ChargerSystemVoltage] = powerStatus.ChargerSystemVoltage.Get();
+        m_RegisterStorage.GetWriteBuffer()[Api::Register::BatteryTemperature] = powerStatus.BatteryTemperature.Get();
     }
 }
 

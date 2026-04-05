@@ -39,6 +39,7 @@ namespace PiSubmarine::Chipset::Tasks
         SetReg5Enabled(false);
         SetReg12Enabled(false);
 
+        SetBatLedEnabled(true);
         SetRegPiLedEnabled(true);
         SetReg5LedEnabled(true);
         SetReg12LedEnabled(true);
@@ -47,6 +48,13 @@ namespace PiSubmarine::Chipset::Tasks
         {
             Delay(1000ms);
         }
+
+        while (GetVsys().Get() < VsysThreshold.Get())
+        {
+            Delay(100ms);
+        }
+
+        SetBatLedEnabled(false);
 
         SetReg12Enabled(true);
         while (!IsReg12PowerGood())
@@ -79,6 +87,9 @@ namespace PiSubmarine::Chipset::Tasks
             SetReg5LedEnabled(!domain5vGood);
             SetRegPiLedEnabled(!domain3v3Good);
 
+            auto vsys = GetVsys();
+            SetBatLedEnabled(vsys.Get() < VsysThreshold.Get());
+
             auto status0 = m_Charger.GetChargerStatus0();
             if (!status0.has_value())
             {
@@ -100,12 +111,45 @@ namespace PiSubmarine::Chipset::Tasks
                 continue;
             }
 
+
+            auto ibus = m_Charger.GetIbusCurrent();
+            if (!ibus.has_value())
+            {
+                Delay(100ms);
+                continue;
+            }
+
+            auto ibat = m_Charger.GetIbatCurrent();
+            if (!ibat.has_value())
+            {
+                Delay(100ms);
+                continue;
+            }
+
+            auto vbus = m_Charger.GetVbusVoltage();
+            if (!vbus.has_value())
+            {
+                SetBatLedEnabled(true);
+                Delay(100ms);
+                continue;
+            }
+
+            auto vbat = m_Charger.GetVbatVoltage();
+            if (!vbat.has_value())
+            {
+                Delay(100ms);
+                continue;
+            }
+
+            // TODO Battery Temperature
+
             auto chargerTemperature = m_Charger.GetDieTemperature();
             if (!chargerTemperature.has_value())
             {
                 Delay(100ms);
                 continue;
             }
+
 
             bool vbusPresent = RegUtils::HasAnyFlag(status0.value(), Bq25792::ChargerStatus0Flags::VbusPresentStat);
             bool isCharging = chargeStatus != Bq25792::ChargeStatus::NotCharging && chargeStatus != Bq25792::ChargeStatus::ChargingTerminationDone;
@@ -141,6 +185,12 @@ namespace PiSubmarine::Chipset::Tasks
             {
                 powerStatus.StatusFlags = powerStatus.StatusFlags | PowerStatus::Flags::ChargerOverheat;
             }
+            powerStatus.ChargerBusCurrent = Units::MicroAmperes(ibus.value().Value * 1000);
+            powerStatus.BatteryCurrent = Units::MicroAmperes(ibat.value().Value * 1000);
+            powerStatus.ChargerBusVoltage = Units::MicroVolts(vbus.value().Value * 1000);
+            powerStatus.BatteryVoltage = Units::MicroVolts(vbat.value().Value * 1000);
+            powerStatus.ChargerSystemVoltage = vsys;
+            // TODO Write Battery Temperature
             powerStatus.ChargerTemperature = Units::MicroKelvins(chargerTemperature.value().Halves * 500000 + 273150000);
 
             // TODO Charger Overcurrent
@@ -178,6 +228,11 @@ namespace PiSubmarine::Chipset::Tasks
     void Power::SetReg5Enabled(bool enabled)
     {
         HAL_GPIO_WritePin(REG5_EN_GPIO_Port, REG5_EN_Pin, static_cast<GPIO_PinState>(enabled));
+    }
+
+    void Power::SetBatLedEnabled(bool enabled)
+    {
+        HAL_GPIO_WritePin(LED_BAT_GPIO_Port, LED_BAT_Pin, static_cast<GPIO_PinState>(enabled));
     }
 
     void Power::SetReg12LedEnabled(bool enabled)
@@ -260,5 +315,18 @@ namespace PiSubmarine::Chipset::Tasks
     {
         return m_Charger.SetAdcEnabled(true) == Bq25792::ProtocolError::Ok &&
             m_Charger.SetAdcSampleSpeed(Bq25792::AdcSpeed::Resolution15bits) == Bq25792::ProtocolError::Ok;
+    }
+
+    Units::MicroVolts Power::GetVsys() const
+    {
+        while (true)
+        {
+            auto vsys = m_Charger.GetVsysVoltage();
+            if (!vsys.has_value())
+            {
+               return Units::MicroVolts(0);
+            }
+            return Units::MicroVolts(vsys.value().Value * 1000);
+        }
     }
 }

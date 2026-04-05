@@ -48,7 +48,7 @@ typedef StaticSemaphore_t osStaticMutexDef_t;
 /* USER CODE END Variables */
 /* Definitions for PowerTask */
 osThreadId_t PowerTaskHandle;
-uint32_t PowerTaskBuffer[ 128 ];
+uint32_t PowerTaskBuffer[ 192 ];
 osStaticThreadDef_t PowerTaskControlBlock;
 const osThreadAttr_t PowerTask_attributes = {
   .name = "PowerTask",
@@ -60,7 +60,7 @@ const osThreadAttr_t PowerTask_attributes = {
 };
 /* Definitions for AdcTask */
 osThreadId_t AdcTaskHandle;
-uint32_t AdcTaskBuffer[ 86 ];
+uint32_t AdcTaskBuffer[ 192 ];
 osStaticThreadDef_t AdcTaskControlBlock;
 const osThreadAttr_t AdcTask_attributes = {
   .name = "AdcTask",
@@ -72,7 +72,7 @@ const osThreadAttr_t AdcTask_attributes = {
 };
 /* Definitions for HostProtocolTask */
 osThreadId_t HostProtocolTaskHandle;
-uint32_t HostProtocolTaskBuffer[ 128 ];
+uint32_t HostProtocolTaskBuffer[ 192 ];
 osStaticThreadDef_t HostProtocolTaskControlBlocTask;
 const osThreadAttr_t HostProtocolTask_attributes = {
   .name = "HostProtocolTask",
