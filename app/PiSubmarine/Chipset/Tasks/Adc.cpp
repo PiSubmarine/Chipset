@@ -113,6 +113,15 @@ namespace PiSubmarine::Chipset::Tasks
         return Units::MicroKelvins(kelvin);
     }
 
+    Units::MicroVolts Adc::GetVddVoltage() const
+    {
+        volatile uint16_t vRefInt  = m_AdcBuffer[4];
+
+        volatile uint32_t vdda = __HAL_ADC_CALC_VREFANALOG_VOLTAGE(vRefInt, ADC_RESOLUTION_12B);
+        return Units::MicroVolts(vdda * 1000);
+    }
+
+
     Adc::Measurements Adc::GetMeasurements() const
     {
         return m_Measurements.Read();

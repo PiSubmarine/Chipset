@@ -46,5 +46,7 @@ namespace PiSubmarine::Chipset::Tasks
         [[nodiscard]] Units::MicroVolts GetReg5Voltage() const;
         [[nodiscard]] Units::MicroVolts GetRegPiVoltage() const;
         [[nodiscard]] Units::MicroKelvins GetMcuTemperature() const;
+        [[nodiscard]] Units::MicroVolts GetVddVoltage() const;
+
     };
 }
