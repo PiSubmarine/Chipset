@@ -259,7 +259,7 @@ namespace PiSubmarine::Chipset::Tasks
     {
         using namespace Bq25792;
         constexpr auto bqCurrent = MilliAmperes(MaxChargingCurrent.Get() / 1000);
-        if (m_Charger.SetChargeCurrentLimit(bqCurrent) != ProtocolError::Ok)
+        if (!m_Charger.SetChargeCurrentLimit(bqCurrent).has_value())
         {
             return false;
         }
@@ -274,7 +274,7 @@ namespace PiSubmarine::Chipset::Tasks
         using namespace PiSubmarine::Bq25792;
         auto minimalSystemVoltage = 12000_mV;
 
-        if (m_Charger.SetMinimalSystemVoltage(minimalSystemVoltage) != ProtocolError::Ok)
+        if (!m_Charger.SetMinimalSystemVoltage(minimalSystemVoltage).has_value())
         {
             return false;
         }
@@ -285,36 +285,36 @@ namespace PiSubmarine::Chipset::Tasks
 
     bool Power::DisableChargerTemperatureSensor() const
     {
-        return m_Charger.SetTsIgnore(true) == Bq25792::ProtocolError::Ok;
+        return m_Charger.SetTsIgnore(true).has_value();
     }
 
     bool Power::DisableChargerWatchdog() const
     {
-        return m_Charger.SetWatchdog(Bq25792::Watchdog::Disable) == Bq25792::ProtocolError::Ok;
+        return m_Charger.SetWatchdog(Bq25792::Watchdog::Disable).has_value();
     }
 
     bool Power::EnableChargerDischargeOvercurrentProtection() const
     {
-        return m_Charger.SetDischargeOcpEnabled(true) == Bq25792::ProtocolError::Ok;
+        return m_Charger.SetDischargeOcpEnabled(true).has_value();
     }
 
     bool Power::DisableChargerPresetCurrentLimit() const
     {
-        return m_Charger.SetIlimHizCurrentLimitEnabled(false) == Bq25792::ProtocolError::Ok;
+        return m_Charger.SetIlimHizCurrentLimitEnabled(false).has_value();
     }
 
     bool Power::DisableChargerUsbLines() const
     {
         return
-            m_Charger.SetAutomaticDpDmDetectionEnabled(false) == Bq25792::ProtocolError::Ok &&
-            m_Charger.SetDpDac(Bq25792::DpDac::HiZ) == Bq25792::ProtocolError::Ok &&
-            m_Charger.SetDmDac(Bq25792::DmDac::HiZ) == Bq25792::ProtocolError::Ok;
+            m_Charger.SetAutomaticDpDmDetectionEnabled(false).has_value() &&
+            m_Charger.SetDpDac(Bq25792::DpDac::HiZ).has_value() &&
+            m_Charger.SetDmDac(Bq25792::DmDac::HiZ).has_value();
     }
 
     bool Power::EnableChargerAdc() const
     {
-        return m_Charger.SetAdcEnabled(true) == Bq25792::ProtocolError::Ok &&
-            m_Charger.SetAdcSampleSpeed(Bq25792::AdcSpeed::Resolution15bits) == Bq25792::ProtocolError::Ok;
+        return m_Charger.SetAdcEnabled(true).has_value() &&
+            m_Charger.SetAdcSampleSpeed(Bq25792::AdcSpeed::Resolution15bits).has_value();
     }
 
     Units::MicroVolts Power::GetVsys() const
