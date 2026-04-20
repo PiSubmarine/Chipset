@@ -265,7 +265,8 @@ namespace PiSubmarine::Chipset::Tasks
         }
 
         return SetChargerMinimalSystemVoltage() && DisableChargerTemperatureSensor() && DisableChargerWatchdog() &&
-            EnableChargerDischargeOvercurrentProtection() && DisableChargerPresetCurrentLimit() &&
+            EnableChargerDischargeOvercurrentProtection() && EnableChargerDischargeCurrentSensing() &&
+            DisableChargerPresetCurrentLimit() &&
             DisableChargerUsbLines() && EnableChargerAdc();
     }
 
@@ -296,6 +297,11 @@ namespace PiSubmarine::Chipset::Tasks
     bool Power::EnableChargerDischargeOvercurrentProtection() const
     {
         return m_Charger.SetDischargeOcpEnabled(true).has_value();
+    }
+
+    bool Power::EnableChargerDischargeCurrentSensing() const
+    {
+        return m_Charger.SetDischargeCurrentSensingEnabled(true).has_value();
     }
 
     bool Power::DisableChargerPresetCurrentLimit() const

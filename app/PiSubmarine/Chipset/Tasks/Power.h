@@ -76,6 +76,7 @@ namespace PiSubmarine::Chipset::Tasks
         [[nodiscard]] bool DisableChargerTemperatureSensor() const;
         [[nodiscard]] bool DisableChargerWatchdog() const;
         [[nodiscard]] bool EnableChargerDischargeOvercurrentProtection() const;
+        [[nodiscard]] bool EnableChargerDischargeCurrentSensing() const;
         [[nodiscard]] bool DisableChargerPresetCurrentLimit() const;
         [[nodiscard]] bool DisableChargerUsbLines() const;
         [[nodiscard]] bool EnableChargerAdc() const;
